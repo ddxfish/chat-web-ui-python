@@ -145,6 +145,14 @@ const createThinkAccordion = (thinkContent, stepNumber) => {
 
 let currentStreamingMessage = null;
 let streamingContent = '';
+let streamingState = {
+    inThink: false,
+    thinkBuffer: '',
+    thinkCount: 0,
+    currentThinkAccordion: null,
+    mainParagraph: null,
+    processedIndex: 0
+};
 
 export const addUserMessage = (content) => {
     const messageClone = messageTemplate.content.cloneNode(true);
@@ -190,6 +198,16 @@ export const startStreamingMessage = () => {
     currentStreamingMessage = { element: contentDiv, paragraph: p };
     streamingContent = '';
     
+    // Reset streaming state
+    streamingState = {
+        inThink: false,
+        thinkBuffer: '',
+        thinkCount: 0,
+        currentThinkAccordion: null,
+        mainParagraph: p,
+        processedIndex: 0
+    };
+    
     chatContainer.appendChild(messageClone);
     chatContainer.scrollTop = chatContainer.scrollHeight;
     
@@ -197,16 +215,89 @@ export const startStreamingMessage = () => {
 };
 
 export const appendToStreamingMessage = (chunk) => {
-    if (currentStreamingMessage) {
-        streamingContent += chunk;
-        currentStreamingMessage.paragraph.textContent = streamingContent;
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+    if (!currentStreamingMessage) return;
+    
+    streamingContent += chunk;
+    
+    // Only process the new part from where we left off
+    const newContent = streamingContent.slice(streamingState.processedIndex);
+    let processingIndex = 0;
+    
+    while (processingIndex < newContent.length) {
+        if (!streamingState.inThink) {
+            // Look for opening think tag in new content
+            const thinkStart = newContent.indexOf('<think>', processingIndex);
+            
+            if (thinkStart === -1) {
+                // No think tag found, add remaining content to main paragraph
+                const textToAdd = newContent.slice(processingIndex);
+                streamingState.mainParagraph.textContent += textToAdd;
+                processingIndex = newContent.length;
+            } else {
+                // Found think tag, add content before it to main paragraph
+                const beforeThink = newContent.slice(processingIndex, thinkStart);
+                streamingState.mainParagraph.textContent += beforeThink;
+                
+                // Start think mode
+                streamingState.inThink = true;
+                streamingState.thinkCount++;
+                streamingState.thinkBuffer = '';
+                
+                // Create accordion
+                const accordion = createThinkAccordion('', streamingState.thinkCount);
+                accordion.open = true;
+                streamingState.currentThinkAccordion = accordion.querySelector('div');
+                currentStreamingMessage.element.appendChild(accordion);
+                
+                // Skip past the <think> tag
+                processingIndex = thinkStart + 7;
+            }
+        } else {
+            // We're in think mode, look for closing tag
+            const thinkEnd = newContent.indexOf('</think>', processingIndex);
+            
+            if (thinkEnd === -1) {
+                // No closing tag yet, add remaining content to think accordion
+                const textToAdd = newContent.slice(processingIndex);
+                streamingState.thinkBuffer += textToAdd;
+                if (streamingState.currentThinkAccordion) {
+                    streamingState.currentThinkAccordion.textContent = streamingState.thinkBuffer;
+                }
+                processingIndex = newContent.length;
+            } else {
+                // Found closing tag
+                const thinkContent = newContent.slice(processingIndex, thinkEnd);
+                streamingState.thinkBuffer += thinkContent;
+                if (streamingState.currentThinkAccordion) {
+                    streamingState.currentThinkAccordion.textContent = streamingState.thinkBuffer;
+                }
+                
+                // Exit think mode
+                streamingState.inThink = false;
+                streamingState.currentThinkAccordion = null;
+                
+                // Skip past the </think> tag
+                processingIndex = thinkEnd + 8;
+            }
+        }
     }
+    
+    // Update our processed index
+    streamingState.processedIndex = streamingContent.length;
+    
+    chatContainer.scrollTop = chatContainer.scrollHeight;
 };
 
 export const finishStreamingMessage = () => {
     if (currentStreamingMessage) {
-        // Re-render the content with think tag parsing
+        // If we're still in think mode when finishing, close it
+        if (streamingState.inThink && streamingState.currentThinkAccordion) {
+            // Just leave the think accordion as-is, no need to add closing tag
+            streamingState.inThink = false;
+        }
+        
+        // Re-render the final content with proper think tag parsing
+        // This ensures everything is properly formatted
         renderMessageContent(currentStreamingMessage.element, streamingContent);
         
         // Show trash icon and remove streaming ID
@@ -225,6 +316,15 @@ export const finishStreamingMessage = () => {
         
         currentStreamingMessage = null;
         streamingContent = '';
+        streamingState = {
+            inThink: false,
+            thinkBuffer: '',
+            thinkCount: 0,
+            currentThinkAccordion: null,
+            mainParagraph: null,
+            processedIndex: 0
+        };
+        
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 };
@@ -236,6 +336,14 @@ export const cancelStreamingMessage = () => {
     }
     currentStreamingMessage = null;
     streamingContent = '';
+    streamingState = {
+        inThink: false,
+        thinkBuffer: '',
+        thinkCount: 0,
+        currentThinkAccordion: null,
+        mainParagraph: null,
+        processedIndex: 0
+    };
 };
 
 export const showStatusMessage = () => {
