@@ -82,9 +82,8 @@ const handleTrashClick = async (messageIndex) => {
 };
 
 const handleRegenerateClick = async (messageIndex) => {
-    // Placeholder for regenerate functionality
-    console.log('Regenerate clicked for message:', messageIndex);
-    // TODO: Implement regenerate logic
+    const newLength = await chat.handleRegenerateMessage(messageIndex, refreshHistory);
+    updateHistoryLength(newLength);
 };
 
 const handleEditClick = async (messageIndex) => {
@@ -125,8 +124,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const messageIndex = parseInt(e.target.dataset.messageIndex);
             
             if (!isNaN(messageIndex) && action) {
-                // Only allow trash action for now, others are placeholders
-                if (action === 'trash') {
+                // Allow trash and regenerate actions
+                if (action === 'trash' || action === 'regenerate') {
                     handleToolbarAction(action, messageIndex);
                 } else {
                     console.log(`${action} functionality coming soon!`);

@@ -44,7 +44,7 @@ export const handleTrashClick = async (messageIndex, refreshCallback) => {
     }, 'delete messages');
 };
 
-const attemptStreaming = async (prompt, onChunk, onComplete, onError) => {
+const attemptStreaming = async (prompt, onChunk, onComplete, onError, isRegenerate = false) => {
     let streamingStarted = false;
     let streamingSucceeded = false;
 
@@ -52,7 +52,9 @@ const attemptStreaming = async (prompt, onChunk, onComplete, onError) => {
         prompt,
         (chunk) => {
             if (!streamingStarted) {
-                ui.addUserMessage(prompt);
+                if (!isRegenerate) {
+                    ui.addUserMessage(prompt);
+                }
                 ui.startStreamingMessage();
                 streamingStarted = true;
             }
@@ -68,8 +70,10 @@ const attemptStreaming = async (prompt, onChunk, onComplete, onError) => {
         async (error) => {
             if (streamingStarted) {
                 ui.cancelStreamingMessage();
-                const lastUserMessage = document.querySelector('.message.user:last-of-type');
-                if (lastUserMessage) lastUserMessage.remove();
+                if (!isRegenerate) {
+                    const lastUserMessage = document.querySelector('.message.user:last-of-type');
+                    if (lastUserMessage) lastUserMessage.remove();
+                }
             }
             await onError(error);
         }
@@ -101,7 +105,8 @@ export const handleSendMessage = async (promptInput, sendBtn, setProcessingCallb
             async (error) => {
                 console.log('Streaming failed, using fallback');
                 await fallbackToNonStreaming(prompt);
-            }
+            },
+            false // isRegenerate flag
         );
         
         if (result.streamingSucceeded) {
@@ -121,6 +126,59 @@ export const handleSendMessage = async (promptInput, sendBtn, setProcessingCallb
         promptInput.focus();
         setProcessingCallback(false);
     }
+};
+
+export const handleRegenerateMessage = async (messageIndex, refreshCallback) => {
+    return executeWithErrorHandling(async () => {
+        // Get current history to validate and find user message
+        const history = await api.fetchHistory();
+        
+        // Validate it's an assistant message
+        if (!history[messageIndex] || history[messageIndex].role !== 'assistant') {
+            throw new Error('Can only regenerate assistant messages');
+        }
+        
+        // Find the user message that prompted this response
+        const userMessageIndex = messageIndex - 1;
+        if (userMessageIndex < 0 || history[userMessageIndex].role !== 'user') {
+            throw new Error('No user message found to regenerate from');
+        }
+        
+        const userPrompt = history[userMessageIndex].content;
+        const messagesToDelete = history.length - messageIndex;
+        
+        console.log(`Regenerating: deleting ${messagesToDelete} messages, re-sending: "${userPrompt.substring(0, 50)}..."`);
+        
+        // Delete the assistant message and everything after it
+        await api.removeLastMessages(messagesToDelete);
+        
+        // Get the truncated history (everything up to but not including the assistant message)
+        const truncatedHistory = await api.fetchHistory();
+        
+        // Re-send the user message with truncated history
+        let regenerateSucceeded = false;
+        
+        const result = await attemptStreaming(
+            userPrompt,
+            ui.appendToStreamingMessage,
+            () => {
+                regenerateSucceeded = true;
+            },
+            async (error) => {
+                console.log('Regenerate streaming failed, using fallback');
+                await fallbackToNonStreaming(userPrompt);
+            },
+            true // isRegenerate flag
+        );
+        
+        if (regenerateSucceeded) {
+            return await refreshCallback();
+        } else {
+            // Fallback succeeded, refresh to show new messages
+            return await refreshCallback();
+        }
+        
+    }, 'regenerate message');
 };
 
 export const handleResetChat = async (refreshCallback) => {

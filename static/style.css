@@ -16,6 +16,8 @@
     --sidebar-width: 250px;
     --toolbar-bg: rgba(255, 255, 255, 0.05);
     --toolbar-btn-hover: rgba(255, 255, 255, 0.1);
+    --regenerate-bg: #1a472a;
+    --regenerate-color: #4caf50;
 }
 
 body {
@@ -231,6 +233,12 @@ body {
     color: var(--error-color);
 }
 
+.toolbar-btn.regenerate-btn:hover {
+    background-color: var(--regenerate-bg);
+    border-color: var(--regenerate-color);
+    color: var(--regenerate-color);
+}
+
 /* Button visibility by role */
 .message.user .toolbar-btn.regenerate-btn {
     display: none;
@@ -238,13 +246,11 @@ body {
 
 .message.assistant .toolbar-btn.regenerate-btn {
     display: flex;
-    opacity: 0.5; /* Placeholder styling */
-    cursor: not-allowed;
 }
 
 .toolbar-btn.edit-btn {
     display: flex;
-    opacity: 0.5; /* Placeholder styling */
+    opacity: 0.5; /* Still placeholder */
     cursor: not-allowed;
 }
 
