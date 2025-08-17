@@ -122,6 +122,39 @@ body {
     display: none;
 }
 
+/* --- Continue Button --- */
+.continue-button-container {
+    display: flex;
+    justify-content: center;
+    margin: 1.5rem 0;
+    padding: 0 1rem;
+}
+
+.continue-btn {
+    background: var(--regenerate-bg);
+    border: 2px solid var(--regenerate-color);
+    border-radius: 8px;
+    color: var(--regenerate-color);
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: bold;
+    padding: 0.8rem 1.5rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
+}
+
+.continue-btn:hover {
+    background: var(--regenerate-color);
+    color: var(--bg-color);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
+.continue-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(76, 175, 80, 0.25);
+}
+
 /* --- Messages --- */
 .message {
     margin-bottom: 1rem;
@@ -284,7 +317,7 @@ body {
 /* --- Chat Input --- */
 .chat-form-wrapper {
     width: 100%;
-    padding: 10px 2rem 0 2rem;
+    padding: 10px 2rem 15px 2rem;
     border-top: 1px solid var(--border-color);
     background-color: var(--sidebar-bg);
     box-sizing: border-box;

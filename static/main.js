@@ -122,6 +122,12 @@ const handleEditClick = async (messageIndex) => {
     }
 };
 
+const handleContinueClick = async (messageIndex) => {
+    // Continue button does the same as regenerate - it regenerates from the user message
+    console.log('Continue button clicked for message index:', messageIndex);
+    await handleRegenerateClick(messageIndex);
+};
+
 const handleToolbarAction = (action, messageIndex) => {
     switch (action) {
         case 'trash':
@@ -144,8 +150,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.body.classList.add('sidebar-collapsed');
     }
     
-    // Chat container click delegation for toolbar buttons
+    // Chat container click delegation for toolbar buttons AND continue button
     chatContainer?.addEventListener('click', (e) => {
+        // Handle continue button
+        if (e.target.classList.contains('continue-btn') || e.target.id === 'continue-btn') {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const messageIndex = parseInt(e.target.dataset.messageIndex);
+            if (!isNaN(messageIndex)) {
+                handleContinueClick(messageIndex);
+            } else {
+                console.error('Invalid continue button message index:', e.target.dataset);
+            }
+            return;
+        }
+        
+        // Handle toolbar buttons
         if (e.target.classList.contains('toolbar-btn')) {
             e.preventDefault();
             e.stopPropagation();

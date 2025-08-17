@@ -1,78 +1,65 @@
 # Standalone Chat Interface
 
-A simple web interface for chatting with various LLM backends.
+A **lightweight, UI-only chat interface** that connects to OpenAI-compatible API endpoints. No built-in LLM - just a clean, modern web interface for chatting with any OpenAI-compatible service.
 
-## Setup
+## Features
 
-1. Install dependencies:
-```bash
-pip install flask requests
-```
+- 🚀 **Streaming responses** with real-time message display
+- ✏️ **Edit any message** inline and regenerate from that point
+- 🔄 **Regenerate responses** from any message in the conversation
+- 🗑️ **Smart deletion** - remove message pairs from any point
+- ⏭️ **Continue conversations** - button appears when ending on user message
+- 🧠 **Thinking blocks** - collapsible reasoning steps in responses
+- 📱 **Responsive design** with sidebar and mobile support
+- 💾 **Local chat history** stored in JSON file
+- 🎨 **Dark theme** optimized for readability
+- 🔧 **Multiple backends** - OpenAI, LM Studio, Ollama, or custom endpoints
 
-2. Edit `config.py` to configure your LLM backend:
+## Configuration
+
+Edit `config.py` for your setup:
 
 ```python
-# For LM Studio
+# Backend type: 'openai', 'lmstudio', 'ollama', 'custom'
 LLM_BACKEND = 'lmstudio'
-LLM_ENDPOINT = 'http://localhost:1234/v1'
-MODEL_NAME = 'your-model-name'
 
-# For OpenAI
-LLM_BACKEND = 'openai'
-OPENAI_API_KEY = 'your-api-key'
+# API endpoint (for local servers)
+LLM_ENDPOINT = 'http://localhost:1234/v1'
+
+# Model name
 MODEL_NAME = 'gpt-3.5-turbo'
 
-# For Ollama
-LLM_BACKEND = 'ollama'
-LLM_ENDPOINT = 'http://localhost:11434/v1'
-MODEL_NAME = 'llama2'
+# API key (only needed for OpenAI)
+OPENAI_API_KEY = 'your-key-here'
 ```
 
-3. Run the app:
+## Installation & Usage
+
+### Clone and Install
+```bash
+git clone https://github.com/yourusername/standalone-chat-interface.git
+cd standalone-chat-interface
+pip install -r requirements.txt
+```
+
+### Run the Application
 ```bash
 python main.py
 ```
 
-4. Open http://localhost:8080 in your browser
+Open http://localhost:8080 in your browser.
 
-## Features
+## FAQ
 
-- Clean web chat interface
-- Support for multiple LLM backends
-- Local chat history (JSON file)
-- Message deletion
-- Responsive design
-- Auto-refresh
+**Q: Does this have an LLM back-end?**  
+A: No, this is just a UI that connects to external API endpoints. You need to run your own LLM server or use OpenAI's API.
 
-## Supported Backends
+**Q: Does this require an account with OpenAI?**  
+A: Only if you want to use OpenAI's API. For local models (LM Studio, Ollama, etc.), no account needed.
 
-- **OpenAI**: Official OpenAI API
-- **LM Studio**: Local LM Studio server
-- **Ollama**: Local Ollama server
-- **Custom**: Any OpenAI-compatible API
+**Q: What API key and model name do I use with llama-server or LM Studio?**  
+A: None needed! Just set `LLM_BACKEND = 'lmstudio'` and point `LLM_ENDPOINT` to your local server. Leave `OPENAI_API_KEY` empty.
 
-## Configuration
+## License
 
-Edit `config.py` to customize:
-- LLM backend and endpoint
-- Model name
-- System prompt
-- History limits
-- Server settings
-- Streaming debug level
-
-Chat history is stored in `chat_history.json`.
-Debug logs are written to `chat_debug.log`.
-
-## Troubleshooting
-
-**Streaming not working?**
-1. Check browser console for detailed streaming logs
-2. Check `chat_debug.log` for server-side streaming details
-3. Set `DEBUG_STREAMING = True` in config.py for verbose logs
-4. Verify your LLM backend supports streaming
-
-**Common issues:**
-- LM Studio: Ensure "Enable Streaming" is checked in settings
-- OpenAI: Verify API key is valid
-- Network: Check for firewalls/proxies blocking streaming
+MIT License - see LICENSE file for details.

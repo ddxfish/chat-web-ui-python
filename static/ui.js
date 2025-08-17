@@ -3,6 +3,7 @@
 const chatContainer = document.getElementById('chat-container');
 const messageTemplate = document.getElementById('message-template');
 const statusMessageTemplate = document.getElementById('status-message-template');
+const continueButtonTemplate = document.getElementById('continue-button-template');
 
 // Helper functions
 const scrollToBottom = () => chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -42,7 +43,7 @@ const createMessage = (role, content, messageIndex = null, totalMessages = null)
     const contentDiv = messageClone.querySelector('.message-content');
 
     messageDiv.classList.add(role);
-    avatarImg.src = role === 'user' ? '/static/user.jpg' : '/static/assistant.png';
+    avatarImg.src = role === 'user' ? '/static/user.png' : '/static/assistant.png';
     avatarImg.onerror = () => handleAvatarError(avatarImg);
 
     // Setup toolbar
@@ -77,6 +78,28 @@ export const renderError = (errorMessage) => {
     scrollToBottom();
 };
 
+// Continue button management
+export const showContinueButton = (lastMessageIndex) => {
+    // Remove existing continue button
+    removeContinueButton();
+    
+    const continueButtonClone = continueButtonTemplate.content.cloneNode(true);
+    const continueBtn = continueButtonClone.querySelector('.continue-btn');
+    
+    // Set the message index for the continue button
+    continueBtn.dataset.messageIndex = lastMessageIndex;
+    
+    chatContainer.appendChild(continueButtonClone);
+    scrollToBottom();
+};
+
+export const removeContinueButton = () => {
+    const existingButton = document.getElementById('continue-button-container');
+    if (existingButton) {
+        existingButton.remove();
+    }
+};
+
 export const renderHistory = (history) => {
     safeExecute(() => {
         chatContainer.innerHTML = '';
@@ -97,6 +120,18 @@ export const renderHistory = (history) => {
         
         // FIX: Always update toolbar indexes after rendering
         updateAllToolbarIndexes();
+        
+        // Check if we should show the continue button
+        const shouldShowContinue = history.length > 0 && 
+                                 history[history.length - 1].role === 'user' && 
+                                 !document.getElementById('streaming-message');
+        
+        if (shouldShowContinue) {
+            showContinueButton(history.length - 1);
+        } else {
+            removeContinueButton();
+        }
+        
         scrollToBottom();
     }, 'render chat history');
 };
@@ -331,6 +366,9 @@ const updateAllToolbarIndexes = () => {
 export const forceUpdateToolbarIndexes = () => updateAllToolbarIndexes();
 
 export const addUserMessage = (content) => {
+    // Remove continue button when adding new message
+    removeContinueButton();
+    
     // Calculate proper message index for this new message
     const currentMessageCount = chatContainer.querySelectorAll('.message').length;
     const totalMessages = currentMessageCount + 1; // Include this new message
@@ -341,6 +379,9 @@ export const addUserMessage = (content) => {
 };
 
 export const startStreamingMessage = () => {
+    // Remove continue button when starting to stream
+    removeContinueButton();
+    
     const { messageClone, contentDiv, messageDiv } = createMessage('assistant');
     messageDiv.id = 'streaming-message';
 
