@@ -86,7 +86,7 @@ const renderMessageContent = (contentDiv, content) => {
         // Add think accordion
         thinkCount++;
         const thinkContent = match[1].trim();
-        const accordion = createThinkAccordion(thinkContent, thinkCount);
+        const accordion = createThinkAccordion(thinkContent, thinkCount, false);
         contentDiv.appendChild(accordion);
         
         lastIndex = match.index + match[0].length;
@@ -108,7 +108,7 @@ const renderMessageContent = (contentDiv, content) => {
     }
 };
 
-const createThinkAccordion = (thinkContent, stepNumber) => {
+const createThinkAccordion = (thinkContent, stepNumber, isStreaming = false) => {
     const details = document.createElement('details');
     details.style.cssText = `
         margin: 0.5em 0;
@@ -129,11 +129,12 @@ const createThinkAccordion = (thinkContent, stepNumber) => {
     
     const content = document.createElement('div');
     content.style.cssText = `
-        padding-top: 0.5em;
+        ${isStreaming ? 'padding-top: 0;' : 'padding-top: 0.5em;'}
         margin: 0;
         white-space: pre-wrap;
         font-size: 0.9em;
         color: #ccc;
+        ${isStreaming ? 'min-height: 0;' : ''}
     `;
     content.textContent = thinkContent;
     
@@ -150,7 +151,7 @@ let streamingState = {
     thinkBuffer: '',
     thinkCount: 0,
     currentThinkAccordion: null,
-    mainParagraph: null,
+    currentParagraph: null,
     processedIndex: 0
 };
 
@@ -204,7 +205,7 @@ export const startStreamingMessage = () => {
         thinkBuffer: '',
         thinkCount: 0,
         currentThinkAccordion: null,
-        mainParagraph: p,
+        currentParagraph: p,
         processedIndex: 0
     };
     
@@ -229,14 +230,14 @@ export const appendToStreamingMessage = (chunk) => {
             const thinkStart = newContent.indexOf('<think>', processingIndex);
             
             if (thinkStart === -1) {
-                // No think tag found, add remaining content to main paragraph
+                // No think tag found, add remaining content to current paragraph
                 const textToAdd = newContent.slice(processingIndex);
-                streamingState.mainParagraph.textContent += textToAdd;
+                streamingState.currentParagraph.textContent += textToAdd;
                 processingIndex = newContent.length;
             } else {
-                // Found think tag, add content before it to main paragraph
+                // Found think tag, add content before it to current paragraph
                 const beforeThink = newContent.slice(processingIndex, thinkStart);
-                streamingState.mainParagraph.textContent += beforeThink;
+                streamingState.currentParagraph.textContent += beforeThink;
                 
                 // Start think mode
                 streamingState.inThink = true;
@@ -244,7 +245,7 @@ export const appendToStreamingMessage = (chunk) => {
                 streamingState.thinkBuffer = '';
                 
                 // Create accordion
-                const accordion = createThinkAccordion('', streamingState.thinkCount);
+                const accordion = createThinkAccordion('', streamingState.thinkCount, true);
                 accordion.open = true;
                 streamingState.currentThinkAccordion = accordion.querySelector('div');
                 currentStreamingMessage.element.appendChild(accordion);
@@ -272,9 +273,15 @@ export const appendToStreamingMessage = (chunk) => {
                     streamingState.currentThinkAccordion.textContent = streamingState.thinkBuffer;
                 }
                 
-                // Exit think mode
+                // Exit think mode and create new paragraph for content after think
                 streamingState.inThink = false;
                 streamingState.currentThinkAccordion = null;
+                
+                // Create new paragraph for post-think content
+                const newParagraph = document.createElement('p');
+                newParagraph.textContent = '';
+                currentStreamingMessage.element.appendChild(newParagraph);
+                streamingState.currentParagraph = newParagraph;
                 
                 // Skip past the </think> tag
                 processingIndex = thinkEnd + 8;
@@ -321,7 +328,7 @@ export const finishStreamingMessage = () => {
             thinkBuffer: '',
             thinkCount: 0,
             currentThinkAccordion: null,
-            mainParagraph: null,
+            currentParagraph: null,
             processedIndex: 0
         };
         
@@ -341,7 +348,7 @@ export const cancelStreamingMessage = () => {
         thinkBuffer: '',
         thinkCount: 0,
         currentThinkAccordion: null,
-        mainParagraph: null,
+        currentParagraph: null,
         processedIndex: 0
     };
 };
