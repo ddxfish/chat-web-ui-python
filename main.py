@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # main.py
 # Standalone chat web interface
 
@@ -19,17 +20,28 @@ logger = logging.getLogger(__name__)
 chat_backend = ChatBackend()
 chat_history = ChatHistory()
 
+@app.after_request
+def after_request(response):
+    """Ensure all responses have proper UTF-8 charset"""
+    if response.content_type.startswith('text/'):
+        response.charset = 'utf-8'
+    return response
+
 @app.route('/')
 def index():
     """Serves the main chat interface."""
-    return render_template('index.html')
+    response = Response(render_template('index.html'))
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return response
 
 @app.route('/api/history', methods=['GET'])
 def get_history():
     """Get chat history."""
     try:
         history = chat_history.get_history()
-        return jsonify(history)
+        response = jsonify(history)
+        response.headers['Content-Type'] = 'application/json; charset=utf-8'
+        return response
     except Exception as e:
         logger.error(f"Error getting history: {e}")
         return jsonify({"error": "Failed to get chat history"}), 500
@@ -90,8 +102,8 @@ def post_chat_stream():
                             logger.info(f"Flask yielding chunk {chunk_count}: '{chunk[:30]}{'...' if len(chunk) > 30 else ''}'")
                         
                         # Send chunk and force flush
-                        chunk_data = f"data: {json.dumps({'chunk': chunk})}\n\n"
-                        yield chunk_data
+                        chunk_data = f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
+                        yield chunk_data.encode('utf-8')
                         sys.stdout.flush()  # Force flush to client
                 
                 logger.info(f"=== FLASK STREAMING COMPLETE ===")
@@ -102,25 +114,26 @@ def post_chat_stream():
                 chat_history.add_message('assistant', full_response)
                 
                 # Send completion signal
-                completion_data = f"data: {json.dumps({'done': True})}\n\n"
-                yield completion_data
+                completion_data = f"data: {json.dumps({'done': True}, ensure_ascii=False)}\n\n"
+                yield completion_data.encode('utf-8')
                 sys.stdout.flush()
                 
             except Exception as e:
                 logger.error(f"=== FLASK STREAMING ERROR ===")
                 logger.error(f"Error: {e}")
-                error_data = f"data: {json.dumps({'error': str(e)})}\n\n"
-                yield error_data
+                error_data = f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+                yield error_data.encode('utf-8')
                 sys.stdout.flush()
         
         return Response(
             generate(),
-            mimetype='text/event-stream',
+            mimetype='text/event-stream; charset=utf-8',
             headers={
                 'Cache-Control': 'no-cache',
                 'Connection': 'keep-alive',
                 'Access-Control-Allow-Origin': '*',
-                'X-Accel-Buffering': 'no'  # Disable nginx buffering
+                'X-Accel-Buffering': 'no',  # Disable nginx buffering
+                'Content-Type': 'text/event-stream; charset=utf-8'
             }
         )
         
