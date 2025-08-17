@@ -100,8 +100,8 @@ const renderMessageContent = (contentDiv, content) => {
         contentDiv.appendChild(p);
     }
     
-    // If no think tags found, just add the content as text
-    if (thinkCount === 0 && content.trim()) {
+    // If no content was added at all (empty content), add empty paragraph
+    if (thinkCount === 0 && !afterText && content.trim()) {
         const p = document.createElement('p');
         p.textContent = content;
         contentDiv.appendChild(p);
@@ -299,13 +299,11 @@ export const finishStreamingMessage = () => {
     if (currentStreamingMessage) {
         // If we're still in think mode when finishing, close it
         if (streamingState.inThink && streamingState.currentThinkAccordion) {
-            // Just leave the think accordion as-is, no need to add closing tag
             streamingState.inThink = false;
         }
         
-        // Re-render the final content with proper think tag parsing
-        // This ensures everything is properly formatted
-        renderMessageContent(currentStreamingMessage.element, streamingContent);
+        // DON'T re-render - the content was already properly built during streaming
+        // The appendToStreamingMessage function already handles think tags and builds proper DOM
         
         // Show trash icon and remove streaming ID
         const streamingMsg = document.getElementById('streaming-message');
