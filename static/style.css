@@ -14,6 +14,8 @@
     --error-bg: #422a2a;
     --error-color: #ef5350;
     --sidebar-width: 250px;
+    --toolbar-bg: rgba(255, 255, 255, 0.05);
+    --toolbar-btn-hover: rgba(255, 255, 255, 0.1);
 }
 
 body {
@@ -123,7 +125,7 @@ body {
     margin-bottom: 1rem;
     max-width: 85%;
     display: flex;
-    align-items: flex-end;
+    align-items: flex-start;
     gap: 0.75rem;
     position: relative;
 }
@@ -131,6 +133,12 @@ body {
 .message.user { 
     margin-left: auto; 
     flex-direction: row-reverse; 
+}
+
+.message-wrapper {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .message-content {
@@ -169,36 +177,79 @@ body {
     border-radius: 50%; 
     object-fit: cover; 
     flex-shrink: 0; 
+    margin-top: 0.6rem; /* Align with message content top */
 }
 
-.message-trash {
-    position: absolute;
-    right: -35px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 24px;
+/* --- Message Toolbar --- */
+.message-toolbar {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+    padding: 0 0.3rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.message:hover .message-toolbar {
+    opacity: 1;
+}
+
+.message.user .message-toolbar {
+    justify-content: flex-end;
+}
+
+.message.assistant .message-toolbar {
+    justify-content: flex-start;
+}
+
+.toolbar-btn {
+    background: var(--toolbar-bg);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0.2rem 0.4rem;
+    transition: all 0.2s ease;
+    opacity: 0.7;
+    min-width: 24px;
     height: 24px;
-    background-color: var(--error-bg);
-    border: 1px solid var(--error-color);
-    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
-    font-size: 12px;
-    opacity: 0.7;
-    transition: all 0.2s;
-    user-select: none;
 }
 
-.message-trash:hover {
+.toolbar-btn:hover {
+    background: var(--toolbar-btn-hover);
+    border-color: var(--border-color);
     opacity: 1;
-    background-color: var(--error-color);
-    color: white;
 }
 
-.message.user .message-trash {
+.toolbar-btn.trash-btn:hover {
+    background-color: var(--error-bg);
+    border-color: var(--error-color);
+    color: var(--error-color);
+}
+
+/* Button visibility by role */
+.message.user .toolbar-btn.trash-btn {
     display: none;
+}
+
+.message.user .toolbar-btn.regenerate-btn {
+    display: none;
+}
+
+.message.assistant .toolbar-btn.regenerate-btn {
+    display: flex;
+    opacity: 0.5; /* Placeholder styling */
+    cursor: not-allowed;
+}
+
+.toolbar-btn.edit-btn {
+    display: flex;
+    opacity: 0.5; /* Placeholder styling */
+    cursor: not-allowed;
 }
 
 /* --- Think Accordions --- */

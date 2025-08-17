@@ -13,6 +13,28 @@ const createParagraph = (text = '') => {
     return p;
 };
 
+const setupToolbar = (messageClone, role, messageIndex = null) => {
+    const toolbar = messageClone.querySelector('.message-toolbar');
+    const trashBtn = toolbar.querySelector('.trash-btn');
+    const regenerateBtn = toolbar.querySelector('.regenerate-btn');
+    const editBtn = toolbar.querySelector('.edit-btn');
+    
+    // Set data attributes for all buttons
+    if (messageIndex !== null) {
+        [trashBtn, regenerateBtn, editBtn].forEach(btn => {
+            btn.dataset.messageIndex = messageIndex;
+        });
+        
+        // Calculate message pairs for trash button title
+        if (role === 'assistant') {
+            const messagePairsToDelete = Math.ceil((chatContainer.querySelectorAll('.message').length - messageIndex + 1) / 2);
+            trashBtn.title = `Delete from here (${messagePairsToDelete} message pairs)`;
+        }
+    }
+    
+    return toolbar;
+};
+
 const createMessage = (role, content, messageIndex = null) => {
     const messageClone = messageTemplate.content.cloneNode(true);
     const messageDiv = messageClone.querySelector('.message');
@@ -23,13 +45,8 @@ const createMessage = (role, content, messageIndex = null) => {
     avatarImg.src = role === 'user' ? '/static/user.jpg' : '/static/assistant.png';
     avatarImg.onerror = () => handleAvatarError(avatarImg);
 
-    if (role === 'assistant' && messageIndex !== null) {
-        const trashIcon = document.createElement('div');
-        trashIcon.className = 'message-trash';
-        trashIcon.textContent = '🗑️';
-        trashIcon.dataset.messageIndex = messageIndex;
-        messageDiv.appendChild(trashIcon);
-    }
+    // Setup toolbar
+    setupToolbar(messageClone, role, messageIndex);
 
     if (typeof content === 'string') {
         renderMessageContent(contentDiv, content);
@@ -51,9 +68,8 @@ const safeExecute = (fn, errorMsg) => {
 
 export const renderError = (errorMessage) => {
     const { messageClone } = createMessage('error');
-    const messageDiv = messageClone.querySelector('.message');
-    const avatarImg = messageClone.querySelector('.avatar');
     const contentDiv = messageClone.querySelector('.message-content');
+    const avatarImg = messageClone.querySelector('.avatar');
     
     avatarImg.src = `https://placehold.co/32x32/ef5350/ffffff?text=⚠️`;
     contentDiv.textContent = errorMessage;
@@ -73,20 +89,7 @@ export const renderHistory = (history) => {
         history.forEach((msg, index) => {
             if (!msg?.role || !msg.hasOwnProperty('content')) return;
             
-            const messagePairsToDelete = Math.ceil((history.length - index + 1) / 2);
-            const { messageClone } = createMessage(
-                msg.role, 
-                msg.content, 
-                msg.role === 'assistant' ? index : null
-            );
-            
-            if (msg.role === 'assistant') {
-                const trashIcon = messageClone.querySelector('.message-trash');
-                if (trashIcon) {
-                    trashIcon.title = `Delete from here (${messagePairsToDelete} message pairs)`;
-                }
-            }
-            
+            const { messageClone } = createMessage(msg.role, msg.content, index);
             chatContainer.appendChild(messageClone);
         });
         
@@ -163,9 +166,6 @@ export const addUserMessage = (content) => {
 export const startStreamingMessage = () => {
     const { messageClone, contentDiv, messageDiv } = createMessage('assistant');
     messageDiv.id = 'streaming-message';
-    
-    const trashIcon = messageDiv.querySelector('.message-trash');
-    if (trashIcon) trashIcon.style.display = 'none';
 
     const p = createParagraph();
     contentDiv.appendChild(p);
@@ -243,12 +243,12 @@ export const finishStreamingMessage = () => {
     const streamingMsg = document.getElementById('streaming-message');
     if (streamingMsg) {
         streamingMsg.removeAttribute('id');
-        const trashIcon = streamingMsg.querySelector('.message-trash');
-        if (trashIcon) {
-            trashIcon.style.display = 'flex';
-            trashIcon.dataset.messageIndex = chatContainer.querySelectorAll('.message').length - 1;
-            trashIcon.title = `Delete from here (1 message pair)`;
-        }
+        
+        // Update toolbar with proper message index
+        const allMessages = chatContainer.querySelectorAll('.message');
+        const messageIndex = allMessages.length - 1;
+        
+        setupToolbar(streamingMsg, 'assistant', messageIndex);
     }
     
     currentStreamingMessage = null;

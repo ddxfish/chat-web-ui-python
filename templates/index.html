@@ -41,7 +41,14 @@
     <template id="message-template">
         <div class="message">
             <img src="" alt="Avatar" class="avatar">
-            <div class="message-content"></div>
+            <div class="message-wrapper">
+                <div class="message-content"></div>
+                <div class="message-toolbar">
+                    <button class="toolbar-btn trash-btn" data-action="trash" title="Delete from here">🗑️</button>
+                    <button class="toolbar-btn regenerate-btn" data-action="regenerate" title="Regenerate response">🔄</button>
+                    <button class="toolbar-btn edit-btn" data-action="edit" title="Edit message">✏️</button>
+                </div>
+            </div>
         </div>
     </template>
 
@@ -49,9 +56,11 @@
         <div class="message status" id="status-message">
             <img src="/static/assistant.png" alt="Assistant Avatar" class="avatar" 
                  onerror="this.style.display='none'">
-            <div class="message-content">
-                <div class="spinner"></div>
-                <span class="status-text">Thinking...</span>
+            <div class="message-wrapper">
+                <div class="message-content">
+                    <div class="spinner"></div>
+                    <span class="status-text">Thinking...</span>
+                </div>
             </div>
         </div>
     </template>

@@ -75,9 +75,38 @@ const handleAutoRefresh = async () => {
     updateHistoryLength(newLength);
 };
 
+// Toolbar action handlers
 const handleTrashClick = async (messageIndex) => {
     const newLength = await chat.handleTrashClick(messageIndex, refreshHistory);
     updateHistoryLength(newLength);
+};
+
+const handleRegenerateClick = async (messageIndex) => {
+    // Placeholder for regenerate functionality
+    console.log('Regenerate clicked for message:', messageIndex);
+    // TODO: Implement regenerate logic
+};
+
+const handleEditClick = async (messageIndex) => {
+    // Placeholder for edit functionality
+    console.log('Edit clicked for message:', messageIndex);
+    // TODO: Implement edit logic
+};
+
+const handleToolbarAction = (action, messageIndex) => {
+    switch (action) {
+        case 'trash':
+            handleTrashClick(messageIndex);
+            break;
+        case 'regenerate':
+            handleRegenerateClick(messageIndex);
+            break;
+        case 'edit':
+            handleEditClick(messageIndex);
+            break;
+        default:
+            console.warn('Unknown toolbar action:', action);
+    }
 };
 
 // Event Listeners
@@ -86,15 +115,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.body.classList.add('sidebar-collapsed');
     }
     
-    // Chat container click delegation
+    // Chat container click delegation for toolbar buttons
     chatContainer?.addEventListener('click', (e) => {
-        if (e.target.classList.contains('message-trash')) {
+        if (e.target.classList.contains('toolbar-btn')) {
             e.preventDefault();
             e.stopPropagation();
             
+            const action = e.target.dataset.action;
             const messageIndex = parseInt(e.target.dataset.messageIndex);
-            if (!isNaN(messageIndex)) {
-                handleTrashClick(messageIndex);
+            
+            if (!isNaN(messageIndex) && action) {
+                // Only allow trash action for now, others are placeholders
+                if (action === 'trash') {
+                    handleToolbarAction(action, messageIndex);
+                } else {
+                    console.log(`${action} functionality coming soon!`);
+                }
+            } else {
+                console.error('Invalid toolbar button data:', e.target.dataset);
             }
         }
     });
