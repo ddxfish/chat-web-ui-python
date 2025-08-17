@@ -187,6 +187,14 @@ export const postReset = () => fetchWithHandling('/api/reset', { method: 'POST' 
 
 export const fetchApiHealth = () => fetchWithHandling('/api/health');
 
+export const updateMessage = async (messageIndex, newContent) => {
+    return await fetchWithHandling(`/api/history/messages/${messageIndex}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: newContent })
+    });
+};
+
 export const removeLastMessages = async (count) => {
     return await fetchWithHandling('/api/history/messages', {
         method: 'DELETE',

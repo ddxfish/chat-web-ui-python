@@ -1,6 +1,8 @@
 // static/main.js
 
 import * as chat from './chat.js';
+import * as ui from './ui.js';
+import * as api from './api.js';
 
 // DOM Elements
 const chatForm = document.getElementById('chat-form');
@@ -69,7 +71,7 @@ const handleResetClick = async () => {
 };
 
 const handleAutoRefresh = async () => {
-    if (isProcessing) return;
+    if (isProcessing || ui.isCurrentlyEditing()) return;
     
     const newLength = await chat.autoRefreshChat(isProcessing, lastKnownHistoryLength);
     updateHistoryLength(newLength);
@@ -87,9 +89,37 @@ const handleRegenerateClick = async (messageIndex) => {
 };
 
 const handleEditClick = async (messageIndex) => {
-    // Placeholder for edit functionality
-    console.log('Edit clicked for message:', messageIndex);
-    // TODO: Implement edit logic
+    // Check if already editing
+    if (ui.isCurrentlyEditing()) {
+        console.log('Already editing a message');
+        return;
+    }
+    
+    // Get the message element
+    const allMessages = chatContainer.querySelectorAll('.message');
+    const messageElement = allMessages[messageIndex];
+    
+    if (!messageElement) {
+        console.error('Message element not found for index:', messageIndex);
+        return;
+    }
+    
+    // Get current message data from history (fetch only, don't render!)
+    try {
+        const history = await api.fetchHistory();  // Just fetch, don't render!
+        const message = history[messageIndex];
+        
+        if (!message) {
+            console.error('Message not found in history for index:', messageIndex);
+            return;
+        }
+        
+        // Start editing
+        ui.startEditingMessage(messageElement, messageIndex, message.content, message.role);
+        
+    } catch (error) {
+        console.error('Error starting edit:', error);
+    }
 };
 
 const handleToolbarAction = (action, messageIndex) => {
@@ -124,8 +154,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const messageIndex = parseInt(e.target.dataset.messageIndex);
             
             if (!isNaN(messageIndex) && action) {
-                // Allow trash and regenerate actions
-                if (action === 'trash' || action === 'regenerate') {
+                // Allow trash, regenerate, and edit actions
+                if (action === 'trash' || action === 'regenerate' || action === 'edit') {
                     handleToolbarAction(action, messageIndex);
                 } else {
                     console.log(`${action} functionality coming soon!`);
@@ -139,6 +169,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize
     await refreshHistory();
     setProcessing(false); // Start auto-refresh
+});
+
+// Listen for message save events from edit interface
+document.addEventListener('messageSave', async (e) => {
+    const { messageIndex, newContent, role } = e.detail;
+    
+    try {
+        const newLength = await chat.handleEditMessage(messageIndex, newContent, role, refreshHistory);
+        updateHistoryLength(newLength);
+        ui.finishEditingMessage(true);
+    } catch (error) {
+        console.error('Error saving edited message:', error);
+        ui.finishEditingMessage(false);
+    }
 });
 
 // Form events

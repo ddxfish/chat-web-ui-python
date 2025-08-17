@@ -144,6 +144,145 @@ const renderMessageContent = (contentDiv, content) => {
     }
 };
 
+// Edit state management
+let currentlyEditing = null;
+
+const createEditControls = (originalContent, onSave, onDiscard) => {
+    const container = document.createElement('div');
+    container.className = 'edit-container';
+    container.style.cssText = `
+        background: var(--user-bg);
+        padding: 1rem;
+        border: 2px solid #4caf50;
+        border-radius: 8px;
+        margin: 0.5rem 0;
+    `;
+    
+    const textarea = document.createElement('textarea');
+    textarea.className = 'edit-textarea';
+    textarea.value = originalContent;
+    textarea.style.cssText = `
+        width: 100%; min-height: 80px; max-height: 200px;
+        padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 6px;
+        background: var(--bg-color); color: var(--text-color);
+        font-family: inherit; font-size: 15px; line-height: 1.5;
+        resize: vertical; box-sizing: border-box;
+    `;
+    
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = `
+        display: flex; gap: 0.5rem; margin-top: 0.5rem; justify-content: flex-end;
+    `;
+    
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = 'Save';
+    saveBtn.className = 'edit-save-btn';
+    saveBtn.style.cssText = `
+        padding: 0.6rem 1rem; border: none; border-radius: 4px;
+        background: #4caf50; color: white; cursor: pointer; font-size: 14px;
+        font-weight: bold;
+    `;
+    
+    const discardBtn = document.createElement('button');
+    discardBtn.textContent = 'Discard';
+    discardBtn.className = 'edit-discard-btn';
+    discardBtn.style.cssText = `
+        padding: 0.6rem 1rem; border: 1px solid var(--border-color); border-radius: 4px;
+        background: var(--button-bg); color: var(--text-color); cursor: pointer; font-size: 14px;
+        font-weight: bold;
+    `;
+    
+    saveBtn.onclick = () => onSave(textarea.value.trim());
+    discardBtn.onclick = onDiscard;
+    
+    buttonContainer.appendChild(saveBtn);
+    buttonContainer.appendChild(discardBtn);
+    container.appendChild(textarea);
+    container.appendChild(buttonContainer);
+    
+    // Auto-focus and select text
+    setTimeout(() => {
+        textarea.focus();
+        textarea.select();
+    }, 100);
+    
+    return container;
+};
+
+export const startEditingMessage = (messageElement, messageIndex, currentContent, role) => {
+    if (currentlyEditing) {
+        console.log('Already editing a message');
+        return;
+    }
+    
+    const contentDiv = messageElement.querySelector('.message-wrapper .message-content');
+    if (!contentDiv) {
+        console.error('Could not find message content div');
+        return;
+    }
+    
+    // Store original content and state
+    currentlyEditing = {
+        messageIndex,
+        role,
+        originalContent: currentContent,
+        originalContentHTML: contentDiv.innerHTML,
+        messageElement,
+        contentDiv
+    };
+    
+    const onSave = async (newContent) => {
+        if (!newContent) {
+            alert('Content cannot be empty');
+            return;
+        }
+        
+        try {
+            // Trigger save event with the new content
+            const saveEvent = new CustomEvent('messageSave', {
+                detail: { messageIndex, newContent, role }
+            });
+            document.dispatchEvent(saveEvent);
+            
+        } catch (error) {
+            console.error('Error saving message:', error);
+            alert('Failed to save message');
+        }
+    };
+    
+    const onDiscard = () => {
+        finishEditingMessage(false);
+    };
+    
+    // Replace content with edit controls
+    const editControls = createEditControls(currentContent, onSave, onDiscard);
+    contentDiv.innerHTML = '';
+    contentDiv.appendChild(editControls);
+    
+    // Hide toolbar during edit
+    const toolbar = messageElement.querySelector('.message-wrapper .message-toolbar');
+    if (toolbar) toolbar.style.display = 'none';
+};
+
+export const finishEditingMessage = (success = true) => {
+    if (!currentlyEditing) return;
+    
+    const { contentDiv, originalContentHTML, messageElement } = currentlyEditing;
+    
+    if (!success) {
+        // Restore original content
+        contentDiv.innerHTML = originalContentHTML;
+    }
+    
+    // Show toolbar again
+    const toolbar = messageElement.querySelector('.message-wrapper .message-toolbar');
+    if (toolbar) toolbar.style.display = '';
+    
+    currentlyEditing = null;
+};
+
+export const isCurrentlyEditing = () => currentlyEditing !== null;
+
 // Streaming state
 let currentStreamingMessage = null;
 let streamingContent = '';

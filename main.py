@@ -141,6 +141,32 @@ def post_chat_stream():
         logger.error(f"Error in streaming chat: {e}")
         return jsonify({"error": f"Streaming chat failed: {str(e)}"}), 500
 
+@app.route('/api/history/messages/<int:index>', methods=['PUT'])
+def update_message(index):
+    """Update a specific message in history."""
+    try:
+        data = request.json
+        new_content = data.get('content', '').strip()
+        
+        if not new_content:
+            return jsonify({"error": "Empty content"}), 400
+        
+        history = chat_history.get_history()
+        
+        if not (0 <= index < len(history)):
+            return jsonify({"error": "Invalid message index"}), 400
+        
+        # Update the message content
+        history[index]['content'] = new_content
+        chat_history._save_history(history)
+        
+        logger.info(f"Updated message {index}: {new_content[:50]}...")
+        return jsonify({"status": "success", "message": "Message updated"})
+        
+    except Exception as e:
+        logger.error(f"Error updating message: {e}")
+        return jsonify({"error": "Failed to update message"}), 500
+
 @app.route('/api/reset', methods=['POST'])
 def post_reset():
     """Reset chat history."""
