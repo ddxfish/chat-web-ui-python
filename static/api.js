@@ -48,52 +48,137 @@ export const postChatMessage = (prompt) => fetchWithHandling('/api/chat', {
 });
 
 export const postChatMessageStream = async (prompt, onChunk, onComplete, onError) => {
+    console.log("=== BROWSER STREAMING START ===");
+    console.log("Prompt:", prompt.substring(0, 100));
+    
     try {
+        console.log("Making fetch request to /api/chat/stream...");
+        
         const response = await fetch('/api/chat/stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: prompt })
         });
         
+        console.log(`=== FETCH RESPONSE ===`);
+        console.log(`Status: ${response.status}`);
+        console.log(`OK: ${response.ok}`);
+        console.log(`Headers:`, Object.fromEntries(response.headers.entries()));
+        
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            console.log("Response not OK, trying to get error details...");
+            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorMessage;
+            } catch (e) {
+                // If we can't parse JSON, use the status text
+            }
+            const error = new Error(errorMessage);
+            console.log("Calling onError with:", error.message);
+            onError(error);
+            return;
         }
         
+        console.log("Response OK, getting reader...");
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
+        let buffer = '';
+        let chunkCount = 0;
+        let contentCount = 0;
+        let hasReceivedData = false;
+        let hasReceivedContent = false;
+        
+        console.log("Starting to read stream...");
         
         while (true) {
+            console.log(`Reading chunk ${chunkCount + 1}...`);
             const { done, value } = await reader.read();
-            if (done) break;
             
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
+            if (done) {
+                console.log(`=== STREAM COMPLETE ===`);
+                console.log(`Total chunks: ${chunkCount}, Content pieces: ${contentCount}`);
+                console.log(`Has received any data: ${hasReceivedData}, Has received content: ${hasReceivedContent}`);
+                
+                if (!hasReceivedData) {
+                    console.log("No data received, calling onError");
+                    onError(new Error("Stream ended without any data"));
+                    return;
+                }
+                
+                if (!hasReceivedContent) {
+                    console.log("No content received, calling onError");
+                    onError(new Error("Stream ended without any content"));
+                    return;
+                }
+                
+                break;
+            }
+            
+            const chunk = decoder.decode(value, { stream: true });
+            buffer += chunk;
+            
+            if (chunkCount < 5) {  // Log first 5 raw chunks
+                console.log(`Raw chunk ${chunkCount + 1}:`, JSON.stringify(chunk));
+            }
+            
+            // Process complete lines
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // Keep incomplete line in buffer
             
             for (const line of lines) {
                 if (line.startsWith('data: ')) {
+                    chunkCount++;
+                    hasReceivedData = true;
+                    
                     try {
-                        const data = JSON.parse(line.slice(6));
+                        const dataStr = line.slice(6);
+                        const data = JSON.parse(dataStr);
+                        
+                        if (chunkCount <= 5) {  // Log first 5 parsed data
+                            console.log(`Parsed data ${chunkCount}:`, data);
+                        }
                         
                         if (data.error) {
+                            console.error("=== STREAMING ERROR FROM SERVER ===", data.error);
                             onError(new Error(data.error));
                             return;
                         }
                         
                         if (data.chunk) {
+                            contentCount++;
+                            hasReceivedContent = true;
+                            if (contentCount <= 5) {  // Log first 5 content pieces
+                                console.log(`Content ${contentCount}: '${data.chunk}'`);
+                            }
                             onChunk(data.chunk);
                         }
                         
                         if (data.done) {
+                            console.log("=== RECEIVED DONE SIGNAL ===");
                             onComplete();
                             return;
                         }
                     } catch (e) {
-                        // Skip invalid JSON
+                        console.warn("Failed to parse SSE data:", line, e);
+                        // Skip invalid JSON but don't fail the stream
                     }
                 }
             }
         }
+        
+        // If we get here without receiving the done signal, it might still be successful
+        // if we received content, but let's call onComplete anyway
+        if (hasReceivedContent) {
+            console.log("Stream ended naturally after receiving content");
+            onComplete();
+        } else {
+            console.log("Stream ended without content or done signal");
+            onError(new Error("Stream ended unexpectedly"));
+        }
+        
     } catch (error) {
+        console.error("=== STREAMING FETCH ERROR ===", error);
         onError(error);
     }
 };

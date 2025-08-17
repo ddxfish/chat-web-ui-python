@@ -144,9 +144,28 @@ const createThinkAccordion = (thinkContent, stepNumber) => {
 };
 
 let currentStreamingMessage = null;
+let streamingContent = '';
+
+export const addUserMessage = (content) => {
+    const messageClone = messageTemplate.content.cloneNode(true);
+    const messageDiv = messageClone.querySelector('.message');
+    const avatarImg = messageClone.querySelector('.avatar');
+    const contentDiv = messageClone.querySelector('.message-content');
+
+    messageDiv.classList.add('user');
+    avatarImg.src = '/static/user.jpg';
+    avatarImg.onerror = () => avatarImg.style.display = 'none';
+
+    const p = document.createElement('p');
+    p.textContent = content;
+    contentDiv.appendChild(p);
+    
+    chatContainer.appendChild(messageClone);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+};
 
 export const startStreamingMessage = () => {
-    // Create a new message for streaming
+    // Create a new assistant message for streaming
     const messageClone = messageTemplate.content.cloneNode(true);
     const messageDiv = messageClone.querySelector('.message');
     const avatarImg = messageClone.querySelector('.avatar');
@@ -157,8 +176,19 @@ export const startStreamingMessage = () => {
     avatarImg.src = '/static/assistant.png';
     avatarImg.onerror = () => avatarImg.style.display = 'none';
 
-    contentDiv.innerHTML = '<p></p>';
-    currentStreamingMessage = contentDiv;
+    // Add trash icon
+    const trashIcon = document.createElement('div');
+    trashIcon.className = 'message-trash';
+    trashIcon.textContent = '🗑️';
+    trashIcon.style.display = 'none'; // Hide during streaming
+    messageDiv.appendChild(trashIcon);
+
+    const p = document.createElement('p');
+    p.textContent = '';
+    contentDiv.appendChild(p);
+    
+    currentStreamingMessage = { element: contentDiv, paragraph: p };
+    streamingContent = '';
     
     chatContainer.appendChild(messageClone);
     chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -168,26 +198,33 @@ export const startStreamingMessage = () => {
 
 export const appendToStreamingMessage = (chunk) => {
     if (currentStreamingMessage) {
-        const p = currentStreamingMessage.querySelector('p:last-child');
-        if (p) {
-            p.textContent += chunk;
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
+        streamingContent += chunk;
+        currentStreamingMessage.paragraph.textContent = streamingContent;
+        chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 };
 
-export const finishStreamingMessage = (fullContent) => {
+export const finishStreamingMessage = () => {
     if (currentStreamingMessage) {
-        // Re-render with think tag parsing
-        renderMessageContent(currentStreamingMessage, fullContent);
+        // Re-render the content with think tag parsing
+        renderMessageContent(currentStreamingMessage.element, streamingContent);
         
-        // Remove streaming ID
+        // Show trash icon and remove streaming ID
         const streamingMsg = document.getElementById('streaming-message');
         if (streamingMsg) {
             streamingMsg.removeAttribute('id');
+            const trashIcon = streamingMsg.querySelector('.message-trash');
+            if (trashIcon) {
+                trashIcon.style.display = 'flex';
+                // Calculate proper message index - count all messages, this will be the last one
+                const allMessages = chatContainer.querySelectorAll('.message');
+                trashIcon.dataset.messageIndex = allMessages.length - 1;
+                trashIcon.title = `Delete from here (1 message pair)`;
+            }
         }
         
         currentStreamingMessage = null;
+        streamingContent = '';
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 };
@@ -198,6 +235,7 @@ export const cancelStreamingMessage = () => {
         streamingMsg.remove();
     }
     currentStreamingMessage = null;
+    streamingContent = '';
 };
 
 export const showStatusMessage = () => {

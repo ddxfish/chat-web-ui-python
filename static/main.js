@@ -13,10 +13,33 @@ const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
 // --- Global State ---
 let lastKnownHistoryLength = 0;
 let isProcessing = false;
+let lastAutoRefresh = 0;
+let autoRefreshInterval = null;
 
 // --- Helper Functions ---
 const setProcessing = (processing) => {
     isProcessing = processing;
+    // Pause auto-refresh during processing to prevent race conditions
+    if (processing) {
+        pauseAutoRefresh();
+    } else {
+        resumeAutoRefresh();
+    }
+};
+
+const pauseAutoRefresh = () => {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+        console.log("Auto-refresh paused during processing");
+    }
+};
+
+const resumeAutoRefresh = () => {
+    if (!autoRefreshInterval) {
+        autoRefreshInterval = setInterval(handleAutoRefresh, 4000);
+        console.log("Auto-refresh resumed after processing");
+    }
 };
 
 const refreshHistory = async () => {
@@ -34,21 +57,49 @@ const handleTextareaInput = () => {
 const handleTextareaKeydown = (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
-        handleSendClick();
+        // Only handle if not currently processing to avoid double submission
+        if (!isProcessing) {
+            handleSendClick();
+        }
     }
 };
 
 // --- Event Handlers ---
 const handleSendClick = async () => {
-    const newLength = await chat.handleSendMessage(
-        promptInput, 
-        sendBtn, 
-        setProcessing, 
-        refreshHistory
-    );
-    if (newLength !== null && newLength !== undefined) {
-        lastKnownHistoryLength = newLength;
+    // Prevent double submission
+    if (isProcessing) {
+        console.log("Send already in progress, ignoring click");
+        return;
     }
+    
+    const prompt = promptInput.value.trim();
+    if (!prompt) return;
+    
+    console.log(`=== SEND CLICK START (history length: ${lastKnownHistoryLength}) ===`);
+    
+    try {
+        const result = await chat.handleSendMessage(
+            promptInput, 
+            sendBtn, 
+            setProcessing, 
+            refreshHistory
+        );
+        
+        // Update history length based on what actually happened
+        if (result && result.streaming) {
+            // Streaming worked, UI was updated manually
+            lastKnownHistoryLength += 2; // user + assistant
+            console.log(`Streaming success - updated length to: ${lastKnownHistoryLength}`);
+        } else if (result && result.newLength !== undefined && result.newLength !== null) {
+            // Fell back to non-streaming and refreshed
+            lastKnownHistoryLength = result.newLength;
+            console.log(`Fallback success - updated length to: ${lastKnownHistoryLength}`);
+        }
+    } catch (error) {
+        console.error("Error in handleSendClick:", error);
+    }
+    
+    console.log(`=== SEND CLICK END (final length: ${lastKnownHistoryLength}) ===`);
 };
 
 const handleRefreshClick = () => {
@@ -63,12 +114,29 @@ const handleResetClick = async () => {
 };
 
 const handleAutoRefresh = async () => {
+    // Don't auto-refresh if we're processing
+    if (isProcessing) {
+        console.log("Auto-refresh skipped: processing");
+        return;
+    }
+    
+    // Don't auto-refresh too frequently
+    const now = Date.now();
+    if (now - lastAutoRefresh < 3000) {  // Minimum 3 seconds between auto-refreshes
+        return;
+    }
+    lastAutoRefresh = now;
+    
+    console.log(`Auto-refresh check: known length ${lastKnownHistoryLength}`);
     const newLength = await chat.autoRefreshChat(isProcessing, lastKnownHistoryLength);
-    lastKnownHistoryLength = newLength;
+    if (newLength !== lastKnownHistoryLength) {
+        console.log(`Auto-refresh updated length: ${lastKnownHistoryLength} -> ${newLength}`);
+        lastKnownHistoryLength = newLength;
+    }
 };
 
 const handleTrashClick = async (messageIndex) => {
-    const newLength = await chat.handleTrashClick(messageIndex);
+    const newLength = await chat.handleTrashClick(messageIndex, refreshHistory);
     if (newLength !== null) {
         lastKnownHistoryLength = newLength;
     }
@@ -114,17 +182,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     // Initialize
-    refreshHistory();
+    await refreshHistory();
     
     // Start auto-refresh
-    setInterval(handleAutoRefresh, 4000);
+    resumeAutoRefresh();
 });
 
-// Form and input events
-chatForm.addEventListener('submit', (e) => e.preventDefault());
+// Form and input events - Remove duplicate form submission handler
+chatForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    // Do nothing here - only handle via button click to avoid double submission
+});
+
 promptInput.addEventListener('keydown', handleTextareaKeydown);
 promptInput.addEventListener('input', handleTextareaInput);
-sendBtn.addEventListener('click', handleSendClick);
+sendBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    handleSendClick();
+});
 
 // Control button events
 refreshBtn.addEventListener('click', handleRefreshClick);

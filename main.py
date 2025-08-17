@@ -1,8 +1,10 @@
 # main.py
 # Standalone chat web interface
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 import logging
+import json
+import sys
 import config
 from chat_backend import ChatBackend
 from chat_history import ChatHistory
@@ -68,27 +70,48 @@ def post_chat_stream():
         if not user_message:
             return jsonify({"error": "Empty message"}), 400
         
-        # Add user message to history
-        chat_history.add_message('user', user_message)
-        
-        # Get streaming response
+        # Get current history (don't add user message yet - frontend will handle display)
         history = chat_history.get_history()
         
         def generate():
             try:
+                logger.info("=== FLASK STREAMING START ===")
+                logger.info(f"User message: {user_message[:100]}{'...' if len(user_message) > 100 else ''}")
+                
                 full_response = ""
+                chunk_count = 0
+                
                 for chunk in chat_backend.get_streaming_response(user_message, history):
                     if chunk:
+                        chunk_count += 1
                         full_response += chunk
-                        yield f"data: {json.dumps({'chunk': chunk})}\n\n"
+                        
+                        if chunk_count <= 5 or chunk_count % 10 == 0:  # Log first few and every 10th
+                            logger.info(f"Flask yielding chunk {chunk_count}: '{chunk[:30]}{'...' if len(chunk) > 30 else ''}'")
+                        
+                        # Send chunk and force flush
+                        chunk_data = f"data: {json.dumps({'chunk': chunk})}\n\n"
+                        yield chunk_data
+                        sys.stdout.flush()  # Force flush to client
                 
-                # Add complete response to history
+                logger.info(f"=== FLASK STREAMING COMPLETE ===")
+                logger.info(f"Total chunks: {chunk_count}, Final response length: {len(full_response)}")
+                
+                # Now add both messages to history
+                chat_history.add_message('user', user_message)
                 chat_history.add_message('assistant', full_response)
-                yield f"data: {json.dumps({'done': True})}\n\n"
+                
+                # Send completion signal
+                completion_data = f"data: {json.dumps({'done': True})}\n\n"
+                yield completion_data
+                sys.stdout.flush()
                 
             except Exception as e:
-                logger.error(f"Streaming error: {e}")
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                logger.error(f"=== FLASK STREAMING ERROR ===")
+                logger.error(f"Error: {e}")
+                error_data = f"data: {json.dumps({'error': str(e)})}\n\n"
+                yield error_data
+                sys.stdout.flush()
         
         return Response(
             generate(),
@@ -96,7 +119,8 @@ def post_chat_stream():
             headers={
                 'Cache-Control': 'no-cache',
                 'Connection': 'keep-alive',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': '*',
+                'X-Accel-Buffering': 'no'  # Disable nginx buffering
             }
         )
         

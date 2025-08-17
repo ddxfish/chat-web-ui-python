@@ -20,6 +20,7 @@ SYSTEM_PROMPT = "You are a helpful AI assistant."
 # Streaming Settings
 ENABLE_STREAMING = True
 STREAMING_ENDPOINT = None  # If None, will try to auto-detect from LLM_ENDPOINT
+DEBUG_STREAMING = True  # Set to False to reduce streaming logs
 
 # Storage
 HISTORY_FILE = 'chat_history.json'

@@ -215,11 +215,11 @@ body {
     font-weight: bold;
     font-size: 0.85rem;
     user-select: none;
-    color: #66bb6a;
+    color: #ffffff;
 }
 
 .message details summary:hover {
-    color: #81c784;
+    color: #e0e0e0;
 }
 
 .message details[open] summary {
