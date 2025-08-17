@@ -44,6 +44,13 @@ export const handleTrashClick = async (messageIndex, refreshCallback) => {
     }, 'delete messages');
 };
 
+export const handleEditMessage = async (messageIndex, newContent, role, refreshCallback) => {
+    return executeWithErrorHandling(async () => {
+        await api.updateMessage(messageIndex, newContent);
+        return await refreshCallback();
+    }, 'edit message');
+};
+
 const attemptStreaming = async (prompt, onChunk, onComplete, onError, isRegenerate = false) => {
     let streamingStarted = false;
     let streamingSucceeded = false;
