@@ -13,7 +13,7 @@ const createParagraph = (text = '') => {
     return p;
 };
 
-const setupToolbar = (messageClone, role, messageIndex = null) => {
+const setupToolbar = (messageClone, role, messageIndex = null, totalMessages = null) => {
     const toolbar = messageClone.querySelector('.message-toolbar');
     const trashBtn = toolbar.querySelector('.trash-btn');
     const regenerateBtn = toolbar.querySelector('.regenerate-btn');
@@ -25,17 +25,17 @@ const setupToolbar = (messageClone, role, messageIndex = null) => {
             btn.dataset.messageIndex = messageIndex;
         });
         
-        // Calculate message pairs for trash button title
-        if (role === 'assistant') {
-            const messagePairsToDelete = Math.ceil((chatContainer.querySelectorAll('.message').length - messageIndex + 1) / 2);
-            trashBtn.title = `Delete from here (${messagePairsToDelete} message pairs)`;
-        }
+        // Calculate message pairs for trash button title (both user and assistant)
+        const total = totalMessages || chatContainer.querySelectorAll('.message').length;
+        const messagesToDelete = total - messageIndex;
+        const messagePairsToDelete = Math.ceil(messagesToDelete / 2);
+        trashBtn.title = `Delete from here (${messagesToDelete} message${messagesToDelete === 1 ? '' : 's'}, ${messagePairsToDelete} pair${messagePairsToDelete === 1 ? '' : 's'})`;
     }
     
     return toolbar;
 };
 
-const createMessage = (role, content, messageIndex = null) => {
+const createMessage = (role, content, messageIndex = null, totalMessages = null) => {
     const messageClone = messageTemplate.content.cloneNode(true);
     const messageDiv = messageClone.querySelector('.message');
     const avatarImg = messageClone.querySelector('.avatar');
@@ -46,7 +46,7 @@ const createMessage = (role, content, messageIndex = null) => {
     avatarImg.onerror = () => handleAvatarError(avatarImg);
 
     // Setup toolbar
-    setupToolbar(messageClone, role, messageIndex);
+    setupToolbar(messageClone, role, messageIndex, totalMessages);
 
     if (typeof content === 'string') {
         renderMessageContent(contentDiv, content);
@@ -86,10 +86,12 @@ export const renderHistory = (history) => {
             return;
         }
         
+        const totalMessages = history.length;
+        
         history.forEach((msg, index) => {
             if (!msg?.role || !msg.hasOwnProperty('content')) return;
             
-            const { messageClone } = createMessage(msg.role, msg.content, index);
+            const { messageClone } = createMessage(msg.role, msg.content, index, totalMessages);
             chatContainer.appendChild(messageClone);
         });
         
@@ -158,7 +160,11 @@ const resetStreamingState = (paragraph = null) => {
 };
 
 export const addUserMessage = (content) => {
-    const { messageClone } = createMessage('user', createParagraph(content));
+    // Calculate proper message index for this new message
+    const currentMessageCount = chatContainer.querySelectorAll('.message').length;
+    const totalMessages = currentMessageCount + 1; // Include this new message
+    
+    const { messageClone } = createMessage('user', createParagraph(content), currentMessageCount, totalMessages);
     chatContainer.appendChild(messageClone);
     scrollToBottom();
 };
@@ -247,8 +253,9 @@ export const finishStreamingMessage = () => {
         // Update toolbar with proper message index
         const allMessages = chatContainer.querySelectorAll('.message');
         const messageIndex = allMessages.length - 1;
+        const totalMessages = allMessages.length;
         
-        setupToolbar(streamingMsg, 'assistant', messageIndex);
+        setupToolbar(streamingMsg, 'assistant', messageIndex, totalMessages);
     }
     
     currentStreamingMessage = null;

@@ -232,10 +232,6 @@ body {
 }
 
 /* Button visibility by role */
-.message.user .toolbar-btn.trash-btn {
-    display: none;
-}
-
 .message.user .toolbar-btn.regenerate-btn {
     display: none;
 }
