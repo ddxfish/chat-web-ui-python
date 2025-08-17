@@ -68,7 +68,7 @@ export const handleTrashClick = async (messageIndex, refreshCallback) => {
 };
 
 /**
- * Handle sending chat messages
+ * Handle sending chat messages with streaming support
  */
 export const handleSendMessage = async (promptInput, sendBtn, setProcessingCallback, refreshCallback) => {
     const prompt = promptInput.value.trim();
@@ -83,9 +83,45 @@ export const handleSendMessage = async (promptInput, sendBtn, setProcessingCallb
     ui.showStatusMessage();
 
     try {
-        await api.postChatMessage(prompt);
-        const result = await refreshCallback();
-        return result;
+        // Try streaming first
+        let streamingWorked = false;
+        
+        await api.postChatMessageStream(
+            prompt,
+            // onChunk
+            (chunk) => {
+                if (!streamingWorked) {
+                    ui.removeStatusMessage();
+                    ui.startStreamingMessage();
+                    streamingWorked = true;
+                }
+                ui.appendToStreamingMessage(chunk);
+            },
+            // onComplete  
+            async () => {
+                streamingWorked = true;
+                const result = await refreshCallback();
+                return result;
+            },
+            // onError
+            async (error) => {
+                console.log('Streaming failed, falling back to non-streaming:', error);
+                if (streamingWorked) {
+                    ui.cancelStreamingMessage();
+                }
+                
+                // Fallback to non-streaming
+                try {
+                    await api.postChatMessage(prompt);
+                    const result = await refreshCallback();
+                    return result;
+                } catch (fallbackError) {
+                    handleError(fallbackError, 'get response');
+                    return null;
+                }
+            }
+        );
+        
     } catch (error) {
         handleError(error, 'get response');
         return null;

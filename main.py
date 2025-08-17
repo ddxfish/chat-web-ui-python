@@ -58,6 +58,52 @@ def post_chat():
         logger.error(f"Error in chat: {e}")
         return jsonify({"error": f"Chat failed: {str(e)}"}), 500
 
+@app.route('/api/chat/stream', methods=['POST'])
+def post_chat_stream():
+    """Send message to LLM and get streaming response."""
+    try:
+        data = request.json
+        user_message = data.get('text', '').strip()
+        
+        if not user_message:
+            return jsonify({"error": "Empty message"}), 400
+        
+        # Add user message to history
+        chat_history.add_message('user', user_message)
+        
+        # Get streaming response
+        history = chat_history.get_history()
+        
+        def generate():
+            try:
+                full_response = ""
+                for chunk in chat_backend.get_streaming_response(user_message, history):
+                    if chunk:
+                        full_response += chunk
+                        yield f"data: {json.dumps({'chunk': chunk})}\n\n"
+                
+                # Add complete response to history
+                chat_history.add_message('assistant', full_response)
+                yield f"data: {json.dumps({'done': True})}\n\n"
+                
+            except Exception as e:
+                logger.error(f"Streaming error: {e}")
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        
+        return Response(
+            generate(),
+            mimetype='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'Access-Control-Allow-Origin': '*'
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in streaming chat: {e}")
+        return jsonify({"error": f"Streaming chat failed: {str(e)}"}), 500
+
 @app.route('/api/reset', methods=['POST'])
 def post_reset():
     """Reset chat history."""

@@ -201,6 +201,38 @@ body {
     display: none;
 }
 
+/* --- Think Accordions --- */
+.message details {
+    margin: 0.5em 0;
+    border: 1px dashed var(--border-color);
+    border-radius: 6px;
+    padding: 0.3em 0.6em;
+    background-color: rgba(0,0,0,0.2);
+}
+
+.message details summary {
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.85rem;
+    user-select: none;
+    color: #66bb6a;
+}
+
+.message details summary:hover {
+    color: #81c784;
+}
+
+.message details[open] summary {
+    margin-bottom: 0.5em;
+}
+
+.message details div {
+    white-space: pre-wrap;
+    font-size: 0.9em;
+    color: #ccc;
+    line-height: 1.4;
+}
+
 /* --- Chat Input --- */
 .chat-form-wrapper {
     width: 100%;

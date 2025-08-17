@@ -52,7 +52,8 @@ export const renderHistory = (history) => {
                 messageDiv.appendChild(trashIcon);
             }
 
-            contentDiv.textContent = msg.content || '';
+            // Parse and render content with think tags
+            renderMessageContent(contentDiv, msg.content || '');
             chatContainer.appendChild(messageClone);
         });
         
@@ -62,6 +63,141 @@ export const renderHistory = (history) => {
         console.error('Error rendering history:', error);
         renderError('Failed to render chat history');
     }
+};
+
+const renderMessageContent = (contentDiv, content) => {
+    // Parse <think> tags
+    const thinkPattern = /<think>(.*?)<\/think>/gs;
+    let match;
+    let lastIndex = 0;
+    let thinkCount = 0;
+    
+    contentDiv.innerHTML = '';
+    
+    while ((match = thinkPattern.exec(content)) !== null) {
+        // Add content before the think tag
+        const beforeText = content.slice(lastIndex, match.index).trim();
+        if (beforeText) {
+            const p = document.createElement('p');
+            p.textContent = beforeText;
+            contentDiv.appendChild(p);
+        }
+        
+        // Add think accordion
+        thinkCount++;
+        const thinkContent = match[1].trim();
+        const accordion = createThinkAccordion(thinkContent, thinkCount);
+        contentDiv.appendChild(accordion);
+        
+        lastIndex = match.index + match[0].length;
+    }
+    
+    // Add remaining content after last think tag
+    const afterText = content.slice(lastIndex).trim();
+    if (afterText) {
+        const p = document.createElement('p');
+        p.textContent = afterText;
+        contentDiv.appendChild(p);
+    }
+    
+    // If no think tags found, just add the content as text
+    if (thinkCount === 0 && content.trim()) {
+        const p = document.createElement('p');
+        p.textContent = content;
+        contentDiv.appendChild(p);
+    }
+};
+
+const createThinkAccordion = (thinkContent, stepNumber) => {
+    const details = document.createElement('details');
+    details.style.cssText = `
+        margin: 0.5em 0;
+        border: 1px dashed var(--border-color);
+        border-radius: 6px;
+        padding: 0.3em 0.6em;
+        background-color: rgba(0,0,0,0.2);
+    `;
+    
+    const summary = document.createElement('summary');
+    summary.style.cssText = `
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 0.85rem;
+        user-select: none;
+    `;
+    summary.innerHTML = `🧠 Think (Step ${stepNumber})`;
+    
+    const content = document.createElement('div');
+    content.style.cssText = `
+        padding-top: 0.5em;
+        margin: 0;
+        white-space: pre-wrap;
+        font-size: 0.9em;
+        color: #ccc;
+    `;
+    content.textContent = thinkContent;
+    
+    details.appendChild(summary);
+    details.appendChild(content);
+    
+    return details;
+};
+
+let currentStreamingMessage = null;
+
+export const startStreamingMessage = () => {
+    // Create a new message for streaming
+    const messageClone = messageTemplate.content.cloneNode(true);
+    const messageDiv = messageClone.querySelector('.message');
+    const avatarImg = messageClone.querySelector('.avatar');
+    const contentDiv = messageClone.querySelector('.message-content');
+
+    messageDiv.classList.add('assistant');
+    messageDiv.id = 'streaming-message';
+    avatarImg.src = '/static/assistant.png';
+    avatarImg.onerror = () => avatarImg.style.display = 'none';
+
+    contentDiv.innerHTML = '<p></p>';
+    currentStreamingMessage = contentDiv;
+    
+    chatContainer.appendChild(messageClone);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    
+    return contentDiv;
+};
+
+export const appendToStreamingMessage = (chunk) => {
+    if (currentStreamingMessage) {
+        const p = currentStreamingMessage.querySelector('p:last-child');
+        if (p) {
+            p.textContent += chunk;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    }
+};
+
+export const finishStreamingMessage = (fullContent) => {
+    if (currentStreamingMessage) {
+        // Re-render with think tag parsing
+        renderMessageContent(currentStreamingMessage, fullContent);
+        
+        // Remove streaming ID
+        const streamingMsg = document.getElementById('streaming-message');
+        if (streamingMsg) {
+            streamingMsg.removeAttribute('id');
+        }
+        
+        currentStreamingMessage = null;
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+};
+
+export const cancelStreamingMessage = () => {
+    const streamingMsg = document.getElementById('streaming-message');
+    if (streamingMsg) {
+        streamingMsg.remove();
+    }
+    currentStreamingMessage = null;
 };
 
 export const showStatusMessage = () => {
