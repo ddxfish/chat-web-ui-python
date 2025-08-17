@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standalone Chat Interface</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <h1>Chat AI</h1>
+        <img src="/static/assistant.png" alt="Assistant Avatar" class="sidebar-avatar" 
+             onerror="this.style.display='none'">
+        
+        <div class="sidebar-controls">
+            <button id="refresh-btn">🔄 Refresh Chat</button>
+            <button id="reset-btn" class="primary">🗑️ Reset Chat</button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <button id="sidebar-toggle-btn">☰</button>
+        
+        <div id="chat-container" class="chat-container">
+            <!-- Chat messages will be inserted here -->
+        </div>
+        
+        <div class="chat-form-wrapper">
+            <form id="chat-form" class="chat-form">
+                <div class="textarea-wrapper">
+                    <textarea id="prompt-input" placeholder="Type your message..." rows="1"></textarea>
+                </div>
+                <button type="submit" id="send-btn">Send</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Templates -->
+    <template id="message-template">
+        <div class="message">
+            <img src="" alt="Avatar" class="avatar">
+            <div class="message-content"></div>
+        </div>
+    </template>
+
+    <template id="status-message-template">
+        <div class="message status" id="status-message">
+            <img src="/static/assistant.png" alt="Assistant Avatar" class="avatar" 
+                 onerror="this.style.display='none'">
+            <div class="message-content">
+                <div class="spinner"></div>
+                <span class="status-text">Thinking...</span>
+            </div>
+        </div>
+    </template>
+
+    <script type="module" src="/static/main.js"></script>
+</body>
+</html>
