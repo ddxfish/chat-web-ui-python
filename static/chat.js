@@ -130,32 +130,44 @@ export const handleSendMessage = async (promptInput, sendBtn, setProcessingCallb
 
 export const handleRegenerateMessage = async (messageIndex, refreshCallback) => {
     return executeWithErrorHandling(async () => {
-        // Get current history to validate and find user message
+        // Get current history to validate message
         const history = await api.fetchHistory();
         
-        // Validate it's an assistant message
-        if (!history[messageIndex] || history[messageIndex].role !== 'assistant') {
-            throw new Error('Can only regenerate assistant messages');
+        if (!history[messageIndex]) {
+            throw new Error('Invalid message index');
         }
         
-        // Find the user message that prompted this response
-        const userMessageIndex = messageIndex - 1;
-        if (userMessageIndex < 0 || history[userMessageIndex].role !== 'user') {
-            throw new Error('No user message found to regenerate from');
+        const currentMessage = history[messageIndex];
+        let userPrompt;
+        let deleteFromIndex;
+        
+        if (currentMessage.role === 'assistant') {
+            // Regenerating assistant message - delete from the user message that prompted it
+            const userMessageIndex = messageIndex - 1;
+            if (userMessageIndex < 0 || history[userMessageIndex].role !== 'user') {
+                throw new Error('No user message found to regenerate from');
+            }
+            userPrompt = history[userMessageIndex].content;
+            deleteFromIndex = userMessageIndex; // Delete user message too to avoid duplicates
+        } else if (currentMessage.role === 'user') {
+            // Regenerating from user message - delete from this user message
+            userPrompt = currentMessage.content;
+            deleteFromIndex = messageIndex;
+        } else {
+            throw new Error('Can only regenerate user or assistant messages');
         }
         
-        const userPrompt = history[userMessageIndex].content;
-        const messagesToDelete = history.length - messageIndex;
+        const messagesToDelete = history.length - deleteFromIndex;
         
-        console.log(`Regenerating: deleting ${messagesToDelete} messages, re-sending: "${userPrompt.substring(0, 50)}..."`);
+        console.log(`Regenerating: deleting ${messagesToDelete} messages from index ${deleteFromIndex}, re-sending: "${userPrompt.substring(0, 50)}..."`);
         
-        // Delete the assistant message and everything after it
+        // Delete from the user message onward (clean slate)
         await api.removeLastMessages(messagesToDelete);
         
-        // Get the truncated history (everything up to but not including the assistant message)
-        const truncatedHistory = await api.fetchHistory();
+        // CRITICAL: Refresh UI immediately to show deletion before regenerating
+        await refreshCallback();
         
-        // Re-send the user message with truncated history
+        // Re-send the user message - backend will add both user + assistant messages cleanly
         let regenerateSucceeded = false;
         
         const result = await attemptStreaming(
@@ -168,15 +180,11 @@ export const handleRegenerateMessage = async (messageIndex, refreshCallback) => 
                 console.log('Regenerate streaming failed, using fallback');
                 await fallbackToNonStreaming(userPrompt);
             },
-            true // isRegenerate flag
+            false // isRegenerate=false so UI shows the user message being added
         );
         
-        if (regenerateSucceeded) {
-            return await refreshCallback();
-        } else {
-            // Fallback succeeded, refresh to show new messages
-            return await refreshCallback();
-        }
+        // Always refresh after regeneration to update indexes and show final result
+        return await refreshCallback();
         
     }, 'regenerate message');
 };
