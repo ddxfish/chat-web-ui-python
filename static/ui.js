@@ -246,7 +246,7 @@ export const appendToStreamingMessage = (chunk) => {
                 
                 // Create accordion
                 const accordion = createThinkAccordion('', streamingState.thinkCount, true);
-                accordion.open = true;
+                accordion.open = false; // Keep closed while streaming
                 streamingState.currentThinkAccordion = accordion.querySelector('div');
                 currentStreamingMessage.element.appendChild(accordion);
                 
