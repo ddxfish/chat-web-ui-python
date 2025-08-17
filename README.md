@@ -1,6 +1,6 @@
 # Standalone Chat Interface
 
-A **lightweight, UI-only chat interface** that connects to OpenAI-compatible API endpoints. No built-in LLM - just a clean, modern web interface for chatting with any OpenAI-compatible service.
+A **lightweight, UI-only chat interface** that connects to OpenAI-compatible API endpoints. No built-in LLM - just a clean, modern web interface for chatting with any OpenAI-compatible service. No junk, ultra-lightweight.
 
 ## Features
 
@@ -37,8 +37,8 @@ OPENAI_API_KEY = 'your-key-here'
 
 ### Clone and Install
 ```bash
-git clone https://github.com/yourusername/standalone-chat-interface.git
-cd standalone-chat-interface
+git clone https://github.com/ddxfish/chat-web-ui-python
+cd chat-web-ui-python
 pip install -r requirements.txt
 ```
 
