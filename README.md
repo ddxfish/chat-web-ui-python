@@ -2,7 +2,7 @@
 
 A **lightweight, UI-only chat interface** that connects to OpenAI-compatible API endpoints. No built-in LLM - just a clean, modern web interface for chatting with any OpenAI-compatible service. No junk, ultra-lightweight.
 
-<img width="1736" height="1154" alt="image" src="https://github.com/user-attachments/assets/971383f4-bb10-4d6b-8206-048a013a6583" />
+<img width="1723" height="1147" alt="image" src="https://github.com/user-attachments/assets/2b275931-8f1f-4ea1-846b-b04bd5a625c6" />
 
 
 ## Features
