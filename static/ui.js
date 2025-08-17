@@ -95,6 +95,8 @@ export const renderHistory = (history) => {
             chatContainer.appendChild(messageClone);
         });
         
+        // FIX: Always update toolbar indexes after rendering
+        updateAllToolbarIndexes();
         scrollToBottom();
     }, 'render chat history');
 };
@@ -298,6 +300,36 @@ const resetStreamingState = (paragraph = null) => {
     };
 };
 
+// Helper function to update all toolbar indexes after changes
+const updateAllToolbarIndexes = () => {
+    const allMessages = chatContainer.querySelectorAll('.message');
+    const totalMessages = allMessages.length;
+    
+    allMessages.forEach((messageElement, index) => {
+        const toolbar = messageElement.querySelector('.message-toolbar');
+        if (toolbar) {
+            const trashBtn = toolbar.querySelector('.trash-btn');
+            const regenerateBtn = toolbar.querySelector('.regenerate-btn');
+            const editBtn = toolbar.querySelector('.edit-btn');
+            
+            // Update all button indexes
+            [trashBtn, regenerateBtn, editBtn].forEach(btn => {
+                if (btn) btn.dataset.messageIndex = index;
+            });
+            
+            // Update trash button title
+            if (trashBtn) {
+                const messagesToDelete = totalMessages - index;
+                const messagePairsToDelete = Math.ceil(messagesToDelete / 2);
+                trashBtn.title = `Delete from here (${messagesToDelete} message${messagesToDelete === 1 ? '' : 's'}, ${messagePairsToDelete} pair${messagePairsToDelete === 1 ? '' : 's'})`;
+            }
+        }
+    });
+};
+
+// Export so other modules can call it when needed
+export const forceUpdateToolbarIndexes = () => updateAllToolbarIndexes();
+
 export const addUserMessage = (content) => {
     // Calculate proper message index for this new message
     const currentMessageCount = chatContainer.querySelectorAll('.message').length;
@@ -336,10 +368,20 @@ export const appendToStreamingMessage = (chunk) => {
             const thinkStart = newContent.indexOf('<think>', processingIndex);
             
             if (thinkStart === -1) {
-                streamingState.currentParagraph.textContent += newContent.slice(processingIndex);
+                let textToAdd = newContent.slice(processingIndex);
+                // FIX: Aggressively trim leading whitespace if paragraph is empty
+                if (streamingState.currentParagraph.textContent === '') {
+                    textToAdd = textToAdd.replace(/^\s+/, '');
+                }
+                streamingState.currentParagraph.textContent += textToAdd;
                 break;
             } else {
-                streamingState.currentParagraph.textContent += newContent.slice(processingIndex, thinkStart);
+                let textToAdd = newContent.slice(processingIndex, thinkStart);
+                // FIX: Aggressively trim leading whitespace if paragraph is empty
+                if (streamingState.currentParagraph.textContent === '') {
+                    textToAdd = textToAdd.replace(/^\s+/, '');
+                }
+                streamingState.currentParagraph.textContent += textToAdd;
                 streamingState.inThink = true;
                 streamingState.thinkCount++;
                 streamingState.thinkBuffer = '';
@@ -373,7 +415,12 @@ export const appendToStreamingMessage = (chunk) => {
                 currentStreamingMessage.element.appendChild(newParagraph);
                 streamingState.currentParagraph = newParagraph;
                 
-                processingIndex = thinkEnd + 8;
+                // FIX: Skip ALL whitespace after </think> to prevent extra spacing
+                let skipIndex = thinkEnd + 8;
+                while (skipIndex < newContent.length && /\s/.test(newContent[skipIndex])) {
+                    skipIndex++;
+                }
+                processingIndex = skipIndex;
             }
         }
     }
@@ -388,14 +435,10 @@ export const finishStreamingMessage = () => {
     const streamingMsg = document.getElementById('streaming-message');
     if (streamingMsg) {
         streamingMsg.removeAttribute('id');
-        
-        // Update toolbar with proper message index
-        const allMessages = chatContainer.querySelectorAll('.message');
-        const messageIndex = allMessages.length - 1;
-        const totalMessages = allMessages.length;
-        
-        setupToolbar(streamingMsg, 'assistant', messageIndex, totalMessages);
     }
+    
+    // FIX: Update ALL toolbar indexes after streaming completes
+    updateAllToolbarIndexes();
     
     currentStreamingMessage = null;
     streamingContent = '';

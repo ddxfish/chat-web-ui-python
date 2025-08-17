@@ -3,6 +3,9 @@
 import * as ui from './ui.js';
 import * as api from './api.js';
 
+// State to prevent concurrent operations
+let isRegenerating = false;
+
 const handleError = (error, action) => {
     console.error(`Error ${action}:`, error);
     ui.renderError(`Failed to ${action}. ${error.message}`);
@@ -38,7 +41,10 @@ export const handleTrashClick = async (messageIndex, refreshCallback) => {
         
         if (confirmed) {
             await api.removeLastMessages(messagesToDelete);
-            return await refreshCallback();
+            const newLength = await refreshCallback();
+            // FIX: Force toolbar index update after deletion
+            ui.forceUpdateToolbarIndexes();
+            return newLength;
         }
         return null;
     }, 'delete messages');
@@ -47,7 +53,10 @@ export const handleTrashClick = async (messageIndex, refreshCallback) => {
 export const handleEditMessage = async (messageIndex, newContent, role, refreshCallback) => {
     return executeWithErrorHandling(async () => {
         await api.updateMessage(messageIndex, newContent);
-        return await refreshCallback();
+        const newLength = await refreshCallback();
+        // FIX: Force toolbar index update after editing
+        ui.forceUpdateToolbarIndexes();
+        return newLength;
     }, 'edit message');
 };
 
@@ -91,6 +100,8 @@ const attemptStreaming = async (prompt, onChunk, onComplete, onError, isRegenera
 
 const fallbackToNonStreaming = async (prompt) => {
     await api.postChatMessage(prompt);
+    // FIX: Update toolbar indexes after non-streaming operation
+    ui.forceUpdateToolbarIndexes();
 };
 
 export const handleSendMessage = async (promptInput, sendBtn, setProcessingCallback, refreshCallback) => {
@@ -136,62 +147,80 @@ export const handleSendMessage = async (promptInput, sendBtn, setProcessingCallb
 };
 
 export const handleRegenerateMessage = async (messageIndex, refreshCallback) => {
+    // FIX: Prevent concurrent regenerate operations
+    if (isRegenerating) {
+        console.log('Regeneration already in progress, ignoring click');
+        return null;
+    }
+    
     return executeWithErrorHandling(async () => {
-        // Get current history to validate message
-        const history = await api.fetchHistory();
+        isRegenerating = true;
         
-        if (!history[messageIndex]) {
-            throw new Error('Invalid message index');
-        }
-        
-        const currentMessage = history[messageIndex];
-        let userPrompt;
-        let deleteFromIndex;
-        
-        if (currentMessage.role === 'assistant') {
-            // Regenerating assistant message - delete from the user message that prompted it
-            const userMessageIndex = messageIndex - 1;
-            if (userMessageIndex < 0 || history[userMessageIndex].role !== 'user') {
-                throw new Error('No user message found to regenerate from');
+        try {
+            // Get current history to validate message
+            const history = await api.fetchHistory();
+            
+            if (!history[messageIndex]) {
+                throw new Error('Invalid message index');
             }
-            userPrompt = history[userMessageIndex].content;
-            deleteFromIndex = userMessageIndex; // Delete user message too to avoid duplicates
-        } else if (currentMessage.role === 'user') {
-            // Regenerating from user message - delete from this user message
-            userPrompt = currentMessage.content;
-            deleteFromIndex = messageIndex;
-        } else {
-            throw new Error('Can only regenerate user or assistant messages');
+            
+            const currentMessage = history[messageIndex];
+            let userPrompt;
+            let deleteFromIndex;
+            
+            if (currentMessage.role === 'assistant') {
+                // Regenerating assistant message - delete from the user message that prompted it
+                const userMessageIndex = messageIndex - 1;
+                if (userMessageIndex < 0 || history[userMessageIndex].role !== 'user') {
+                    throw new Error('No user message found to regenerate from');
+                }
+                userPrompt = history[userMessageIndex].content;
+                deleteFromIndex = userMessageIndex; // Delete user message too to avoid duplicates
+            } else if (currentMessage.role === 'user') {
+                // Regenerating from user message - delete from this user message
+                userPrompt = currentMessage.content;
+                deleteFromIndex = messageIndex;
+            } else {
+                throw new Error('Can only regenerate user or assistant messages');
+            }
+            
+            const messagesToDelete = history.length - deleteFromIndex;
+            
+            console.log(`Regenerating: deleting ${messagesToDelete} messages from index ${deleteFromIndex}, re-sending: "${userPrompt.substring(0, 50)}..."`);
+            
+            // Delete from the user message onward (clean slate)
+            await api.removeLastMessages(messagesToDelete);
+            
+            // CRITICAL: Refresh UI immediately to show deletion before regenerating
+            await refreshCallback();
+            
+            // Re-send the user message - backend will add both user + assistant messages cleanly
+            let regenerateSucceeded = false;
+            
+            const result = await attemptStreaming(
+                userPrompt,
+                ui.appendToStreamingMessage,
+                () => {
+                    regenerateSucceeded = true;
+                },
+                async (error) => {
+                    console.log('Regenerate streaming failed, using fallback');
+                    await fallbackToNonStreaming(userPrompt);
+                },
+                false // isRegenerate=false so UI shows the user message being added
+            );
+            
+            // Always refresh after regeneration to update indexes and show final result
+            const newLength = await refreshCallback();
+            
+            // FIX: Force toolbar index update after regeneration to ensure buttons work
+            ui.forceUpdateToolbarIndexes();
+            
+            return newLength;
+        } finally {
+            // FIX: Always clear the regenerating flag
+            isRegenerating = false;
         }
-        
-        const messagesToDelete = history.length - deleteFromIndex;
-        
-        console.log(`Regenerating: deleting ${messagesToDelete} messages from index ${deleteFromIndex}, re-sending: "${userPrompt.substring(0, 50)}..."`);
-        
-        // Delete from the user message onward (clean slate)
-        await api.removeLastMessages(messagesToDelete);
-        
-        // CRITICAL: Refresh UI immediately to show deletion before regenerating
-        await refreshCallback();
-        
-        // Re-send the user message - backend will add both user + assistant messages cleanly
-        let regenerateSucceeded = false;
-        
-        const result = await attemptStreaming(
-            userPrompt,
-            ui.appendToStreamingMessage,
-            () => {
-                regenerateSucceeded = true;
-            },
-            async (error) => {
-                console.log('Regenerate streaming failed, using fallback');
-                await fallbackToNonStreaming(userPrompt);
-            },
-            false // isRegenerate=false so UI shows the user message being added
-        );
-        
-        // Always refresh after regeneration to update indexes and show final result
-        return await refreshCallback();
         
     }, 'regenerate message');
 };
@@ -201,7 +230,10 @@ export const handleResetChat = async (refreshCallback) => {
     
     return executeWithErrorHandling(async () => {
         await api.postReset();
-        return await refreshCallback();
+        const newLength = await refreshCallback();
+        // FIX: Force toolbar index update after reset
+        ui.forceUpdateToolbarIndexes();
+        return newLength;
     }, 'reset chat');
 };
 
