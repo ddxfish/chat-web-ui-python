@@ -153,76 +153,89 @@ export const handleRegenerateMessage = async (messageIndex, refreshCallback) => 
         return null;
     }
     
-    return executeWithErrorHandling(async () => {
-        isRegenerating = true;
+    isRegenerating = true;
+    const startTime = Date.now();
+    console.log(`=== REGENERATION START ${startTime} ===`);
+    
+    try {
+        console.log(`[${Date.now() - startTime}ms] Getting current history...`);
+        const history = await api.fetchHistory();
+        console.log(`[${Date.now() - startTime}ms] Got history, length: ${history.length}`);
         
-        try {
-            // Get current history to validate message
-            const history = await api.fetchHistory();
-            
-            if (!history[messageIndex]) {
-                throw new Error('Invalid message index');
-            }
-            
-            const currentMessage = history[messageIndex];
-            let userPrompt;
-            let deleteFromIndex;
-            
-            if (currentMessage.role === 'assistant') {
-                // Regenerating assistant message - delete from the user message that prompted it
-                const userMessageIndex = messageIndex - 1;
-                if (userMessageIndex < 0 || history[userMessageIndex].role !== 'user') {
-                    throw new Error('No user message found to regenerate from');
-                }
-                userPrompt = history[userMessageIndex].content;
-                deleteFromIndex = userMessageIndex; // Delete user message too to avoid duplicates
-            } else if (currentMessage.role === 'user') {
-                // Regenerating from user message - delete from this user message
-                userPrompt = currentMessage.content;
-                deleteFromIndex = messageIndex;
-            } else {
-                throw new Error('Can only regenerate user or assistant messages');
-            }
-            
-            const messagesToDelete = history.length - deleteFromIndex;
-            
-            console.log(`Regenerating: deleting ${messagesToDelete} messages from index ${deleteFromIndex}, re-sending: "${userPrompt.substring(0, 50)}..."`);
-            
-            // Delete from the user message onward (clean slate)
-            await api.removeLastMessages(messagesToDelete);
-            
-            // CRITICAL: Refresh UI immediately to show deletion before regenerating
-            await refreshCallback();
-            
-            // Re-send the user message - backend will add both user + assistant messages cleanly
-            let regenerateSucceeded = false;
-            
-            const result = await attemptStreaming(
-                userPrompt,
-                ui.appendToStreamingMessage,
-                () => {
-                    regenerateSucceeded = true;
-                },
-                async (error) => {
-                    console.log('Regenerate streaming failed, using fallback');
-                    await fallbackToNonStreaming(userPrompt);
-                },
-                false // isRegenerate=false so UI shows the user message being added
-            );
-            
-            // Always refresh after regeneration to update indexes and show final result
-            const newLength = await refreshCallback();
-            
-            // FIX: Force toolbar index update after regeneration to ensure buttons work
-            ui.forceUpdateToolbarIndexes();
-            
-            return newLength;
-        } finally {
-            // FIX: Always clear the regenerating flag
-            isRegenerating = false;
+        if (!history[messageIndex]) {
+            throw new Error('Invalid message index');
         }
         
-    }, 'regenerate message');
+        const currentMessage = history[messageIndex];
+        let userPrompt;
+        let deleteFromIndex;
+        
+        if (currentMessage.role === 'assistant') {
+            const userMessageIndex = messageIndex - 1;
+            if (userMessageIndex < 0 || history[userMessageIndex].role !== 'user') {
+                throw new Error('No user message found to regenerate from');
+            }
+            userPrompt = history[userMessageIndex].content;
+            deleteFromIndex = userMessageIndex;
+        } else if (currentMessage.role === 'user') {
+            userPrompt = currentMessage.content;
+            deleteFromIndex = messageIndex;
+        } else {
+            throw new Error('Can only regenerate user or assistant messages');
+        }
+        
+        const messagesToDelete = history.length - deleteFromIndex;
+        console.log(`[${Date.now() - startTime}ms] Regenerating: deleting ${messagesToDelete} messages from index ${deleteFromIndex}`);
+        
+        // Delete messages and refresh immediately
+        await api.removeLastMessages(messagesToDelete);
+        await refreshCallback();
+        console.log(`[${Date.now() - startTime}ms] Messages deleted and UI refreshed`);
+        
+        // CRITICAL FIX: Clear the regenerating flag right after the streaming setup
+        // but before the potentially slow streaming completes
+        let streamingSetupComplete = false;
+        
+        // Re-send the user message
+        await attemptStreaming(
+            userPrompt,
+            ui.appendToStreamingMessage,
+            () => {
+                console.log(`[${Date.now() - startTime}ms] Regeneration streaming completed`);
+            },
+            async (error) => {
+                console.log(`[${Date.now() - startTime}ms] Regenerate streaming failed, using fallback`);
+                await fallbackToNonStreaming(userPrompt);
+            },
+            false
+        );
+        
+        // CRITICAL FIX: Clear flag immediately after streaming attempt is set up
+        // Don't wait for the long cleanup process
+        isRegenerating = false;
+        console.log(`[${Date.now() - startTime}ms] === REGENERATION FLAG CLEARED - READY FOR NEXT ===`);
+        
+        // SIMPLIFIED CLEANUP: Make this optional and non-blocking
+        // Schedule cleanup to happen in background without blocking next regeneration
+        setTimeout(async () => {
+            try {
+                console.log(`[${Date.now() - startTime}ms] Background cleanup starting...`);
+                ui.forceUpdateToolbarIndexes();
+                console.log(`[${Date.now() - startTime}ms] Background cleanup completed`);
+            } catch (err) {
+                console.warn(`[${Date.now() - startTime}ms] Background cleanup failed:`, err);
+            }
+        }, 100); // Small delay to ensure UI is ready
+        
+    } catch (error) {
+        console.error(`[${Date.now() - startTime}ms] Regeneration error:`, error);
+        ui.renderError(`Failed to regenerate message. ${error.message}`);
+        // Clear flag on error
+        isRegenerating = false;
+    }
+    
+    // No finally block needed - flag is cleared immediately after streaming setup
+    console.log(`[${Date.now() - startTime}ms] === REGENERATION FUNCTION COMPLETE ===`);
 };
 
 export const handleResetChat = async (refreshCallback) => {
