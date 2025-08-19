@@ -20,7 +20,8 @@ SYSTEM_PROMPT = "You are a very mean AI assistant."
 # Session Settings
 SESSIONS_DIR = 'history'  # Directory to store chat sessions
 AUTO_NAME_SESSIONS = True  # Let AI generate names for sessions
-NAMING_PROMPT = "Generate a 3-word name for this conversation. Respond with only the 3 words, no punctuation:"
+USE_NAMED_FILES = True  # Rename session files to match AI-generated names
+NAMING_PROMPT = "Summarize this conversation in exactly 3 words separated by underscores. Examples: python_web_scraping, database_optimization_help, react_component_issue. Only respond with the 3 words:"
 
 # Streaming Settings
 ENABLE_STREAMING = True

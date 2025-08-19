@@ -36,7 +36,11 @@ class ChatBackend:
     
     def get_simple_response(self, prompt):
         """Get simple response for AI naming (no history, minimal system prompt)."""
-        messages = [{"role": "user", "content": prompt}]
+        # Use simple system prompt to discourage thinking tags
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant. Respond directly and concisely without thinking tags."},
+            {"role": "user", "content": prompt}
+        ]
         
         headers = {"Content-Type": "application/json; charset=utf-8"}
         if self.api_key:
@@ -45,8 +49,8 @@ class ChatBackend:
         payload = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.3,
-            "max_tokens": 20
+            "temperature": 0.1,  # Lower temperature for more consistent naming
+            "max_tokens": 4000    # Plenty of room for any response
         }
         
         url = self.endpoint
@@ -56,12 +60,18 @@ class ChatBackend:
         elif self.backend_type == 'openai':
             url = "https://api.openai.com/v1/chat/completions"
         
+        logger.info(f"Simple response request to {url}")
+        logger.info(f"Payload: {payload}")
+        
         response = requests.post(url, headers=headers, json=payload, timeout=30)
         response.raise_for_status()
         response.encoding = 'utf-8'
         
         data = response.json()
-        return data["choices"][0]["message"]["content"]
+        content = data["choices"][0]["message"]["content"]
+        
+        logger.info(f"Simple response received: '{content}'")
+        return content
     
     def get_streaming_response(self, user_message, history=None):
         """Get streaming response from LLM backend using default system prompt."""
@@ -174,7 +184,7 @@ class ChatBackend:
         data = response.json()
         content = data["choices"][0]["message"]["content"]
         
-        if isinstance(content, str) and ("Ã°" in content or "Ãƒ" in content):
+        if isinstance(content, str) and ("ÃƒÂ°" in content or "ÃƒÆ'" in content):
             logger.warning(f"DETECTED EMOJI CORRUPTION IN {self.backend_type} RESPONSE")
         
         return content
@@ -219,7 +229,7 @@ class ChatBackend:
             headers=headers,
             json=payload,
             stream=True,
-            timeout=60
+            timeout=90
         )
         response.raise_for_status()
         response.encoding = 'utf-8'
@@ -296,7 +306,7 @@ class ChatBackend:
                                 content = delta.get('content', '')
                                 if content:
                                     content_count += 1
-                                    if "Ã°" in content or "Ãƒ" in content:
+                                    if "ÃƒÂ°" in content or "ÃƒÆ'" in content:
                                         logger.error(f"EMOJI CORRUPTION DETECTED in streaming: {repr(content)}")
                                     yield content
                             elif 'error' in data:

@@ -47,6 +47,12 @@ class ChatSessionManager:
         """Load and activate a specific session."""
         session_file = self.sessions_dir / f"{session_id}.json"
         
+        # If original file doesn't exist, try to find renamed file
+        if not session_file.exists():
+            for f in self.sessions_dir.glob(f"*_{session_id}.json"):
+                session_file = f
+                break
+        
         if not session_file.exists():
             raise FileNotFoundError(f"Session {session_id} not found")
         
@@ -100,6 +106,12 @@ class ChatSessionManager:
         """Delete a session."""
         session_file = self.sessions_dir / f"{session_id}.json"
         
+        # If original file doesn't exist, try to find renamed file
+        if not session_file.exists():
+            for f in self.sessions_dir.glob(f"*_{session_id}.json"):
+                session_file = f
+                break
+        
         if not session_file.exists():
             raise FileNotFoundError(f"Session {session_id} not found")
         
@@ -116,8 +128,14 @@ class ChatSessionManager:
         """Update session name and optionally rename file."""
         session_file = self.sessions_dir / f"{session_id}.json"
         
+        # If original file doesn't exist, try to find renamed file
         if not session_file.exists():
-            raise FileNotFoundError(f"Session {session_id} not found")
+            for f in self.sessions_dir.glob(f"*_{session_id}.json"):
+                session_file = f
+                break
+            
+            if not session_file.exists():
+                raise FileNotFoundError(f"Session {session_id} not found")
         
         with open(session_file, 'r', encoding='utf-8') as f:
             session_data = json.load(f)
@@ -127,18 +145,35 @@ class ChatSessionManager:
         
         # Optionally rename file to use the new name
         if rename_file and config.USE_NAMED_FILES:
-            # Create safe filename from name
-            safe_name = new_name.replace(' ', '_').replace('/', '_').replace('\\', '_')
-            safe_name = ''.join(c for c in safe_name if c.isalnum() or c in '_-')[:50]
+            # Use the name as-is if it's already in underscore format, otherwise create safe filename
+            if '_' in new_name and new_name.replace('_', '').replace(' ', '').isalnum():
+                safe_name = new_name
+            else:
+                # Create safe filename from name
+                safe_name = new_name.replace(' ', '_').replace('/', '_').replace('\\', '_')
+                safe_name = ''.join(c for c in safe_name if c.isalnum() or c in '_-')[:50]
+            
             new_filename = f"{safe_name}_{session_id}.json"
             new_session_file = self.sessions_dir / new_filename
             
-            # Save to new file and delete old one
-            with open(new_session_file, 'w', encoding='utf-8') as f:
-                json.dump(session_data, f, indent=2, ensure_ascii=False)
-            
-            session_file.unlink()
-            logger.info(f"Renamed session file: {session_file.name} -> {new_filename}")
+            # Only rename if the new filename would be different
+            if new_session_file != session_file:
+                try:
+                    # Save to new file and delete old one
+                    with open(new_session_file, 'w', encoding='utf-8') as f:
+                        json.dump(session_data, f, indent=2, ensure_ascii=False)
+                    
+                    session_file.unlink()
+                    logger.info(f"Renamed session file: {session_file.name} -> {new_filename}")
+                except Exception as e:
+                    logger.warning(f"Failed to rename session file: {e}")
+                    # Fallback to updating existing file
+                    with open(session_file, 'w', encoding='utf-8') as f:
+                        json.dump(session_data, f, indent=2, ensure_ascii=False)
+            else:
+                # Same filename, just update existing file
+                with open(session_file, 'w', encoding='utf-8') as f:
+                    json.dump(session_data, f, indent=2, ensure_ascii=False)
         else:
             # Just update the existing file
             with open(session_file, 'w', encoding='utf-8') as f:

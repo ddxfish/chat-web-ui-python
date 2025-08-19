@@ -23,6 +23,9 @@ let autoRefreshInterval = null;
 let currentSessionId = null;
 let sessions = [];
 
+// Auto-naming refresh tracking
+let namingRefreshScheduled = false;
+
 // Helper functions
 const setProcessing = (processing) => {
     isProcessing = processing;
@@ -53,9 +56,23 @@ const refreshSessions = async () => {
         currentSessionId = data.active_session;
         renderSessionsList();
         updateUIState();
+        console.log('Sessions refreshed');
     } catch (error) {
         console.error('Failed to refresh sessions:', error);
     }
+};
+
+const scheduleNamingRefresh = () => {
+    if (namingRefreshScheduled) return;
+    
+    namingRefreshScheduled = true;
+    console.log('Scheduling session name refresh in 3 seconds...');
+    
+    setTimeout(async () => {
+        console.log('Auto-refreshing sessions for naming update');
+        await refreshSessions();
+        namingRefreshScheduled = false;
+    }, 3000); // Wait 3 seconds for AI naming to complete
 };
 
 const updateUIState = () => {
@@ -206,14 +223,52 @@ const handleTextareaKeydown = (event) => {
 const handleSendClick = async () => {
     if (isProcessing || !promptInput.value.trim() || !currentSessionId) return;
     
+    // Check if this is the first message in a new session
+    const isFirstMessage = lastKnownHistoryLength === 0;
+    console.log(`Sending message - isFirstMessage: ${isFirstMessage}, lastKnownHistoryLength: ${lastKnownHistoryLength}`);
+    
     const result = await chat.handleSendMessage(promptInput, sendBtn, setProcessing, refreshHistory);
     
     if (result?.streaming) {
         updateHistoryLength(lastKnownHistoryLength + 2);
+        console.log(`Streaming result - new length: ${lastKnownHistoryLength + 2}`);
+        
+        // Always schedule refresh for sessions with 2 messages (first exchange)
+        setTimeout(async () => {
+            console.log('Checking if we need to refresh for naming...');
+            const currentHistory = await api.fetchHistory();
+            console.log(`Current history length: ${currentHistory.length}`);
+            
+            if (currentHistory.length === 2) {
+                console.log('First exchange detected, refreshing sessions for naming update in 3 seconds...');
+                setTimeout(async () => {
+                    console.log('Auto-refreshing sessions for naming update');
+                    await refreshSessions();
+                }, 3000);
+            }
+        }, 500);
+        
         // Refresh sessions to update message count
         setTimeout(refreshSessions, 1000);
     } else if (result?.newLength !== undefined) {
         updateHistoryLength(result.newLength);
+        console.log(`Non-streaming result - new length: ${result.newLength}`);
+        
+        // Always schedule refresh for sessions with 2 messages (first exchange)
+        setTimeout(async () => {
+            console.log('Checking if we need to refresh for naming...');
+            const currentHistory = await api.fetchHistory();
+            console.log(`Current history length: ${currentHistory.length}`);
+            
+            if (currentHistory.length === 2) {
+                console.log('First exchange detected, refreshing sessions for naming update in 3 seconds...');
+                setTimeout(async () => {
+                    console.log('Auto-refreshing sessions for naming update');
+                    await refreshSessions();
+                }, 3000);
+            }
+        }, 500);
+        
         setTimeout(refreshSessions, 500);
     }
 };
