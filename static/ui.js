@@ -109,6 +109,12 @@ export const renderHistory = (history) => {
             return;
         }
         
+        // Handle empty history case
+        if (history.length === 0) {
+            removeContinueButton();
+            return;
+        }
+        
         const totalMessages = history.length;
         
         history.forEach((msg, index) => {

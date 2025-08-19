@@ -39,6 +39,30 @@ const fetchWithHandling = async (url, options = {}, timeoutMs = 60000) => {
     }
 };
 
+// Session Management API
+export const fetchSessions = () => fetchWithHandling('/api/sessions');
+
+export const createSession = (systemPrompt = null) => fetchWithHandling('/api/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ system_prompt: systemPrompt })
+});
+
+export const activateSession = (sessionId) => fetchWithHandling(`/api/sessions/${sessionId}/activate`, {
+    method: 'POST'
+});
+
+export const deleteSession = (sessionId) => fetchWithHandling(`/api/sessions/${sessionId}`, {
+    method: 'DELETE'
+});
+
+export const updateSessionName = (sessionId, name) => fetchWithHandling(`/api/sessions/${sessionId}/name`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+});
+
+// Chat API (now session-aware)
 export const fetchHistory = () => fetchWithHandling('/api/history');
 
 export const postChatMessage = (prompt) => fetchWithHandling('/api/chat', {

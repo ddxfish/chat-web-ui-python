@@ -10,13 +10,18 @@ const promptInput = document.getElementById('prompt-input');
 const sendBtn = document.getElementById('send-btn');
 const refreshBtn = document.getElementById('refresh-btn');
 const resetBtn = document.getElementById('reset-btn');
+const newSessionBtn = document.getElementById('new-session-btn');
 const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
 const chatContainer = document.getElementById('chat-container');
+const sessionsList = document.getElementById('sessions-list');
+const sessionItemTemplate = document.getElementById('session-item-template');
 
 // State
 let lastKnownHistoryLength = 0;
 let isProcessing = false;
 let autoRefreshInterval = null;
+let currentSessionId = null;
+let sessions = [];
 
 // Helper functions
 const setProcessing = (processing) => {
@@ -41,61 +46,222 @@ const refreshHistory = async () => {
     return updateHistoryLength(result.newLength);
 };
 
+const refreshSessions = async () => {
+    try {
+        const data = await api.fetchSessions();
+        sessions = data.sessions || [];
+        currentSessionId = data.active_session;
+        renderSessionsList();
+        updateUIState();
+    } catch (error) {
+        console.error('Failed to refresh sessions:', error);
+    }
+};
+
+const updateUIState = () => {
+    // Enable/disable chat input based on active session
+    const hasActiveSession = currentSessionId !== null;
+    promptInput.disabled = !hasActiveSession;
+    sendBtn.disabled = !hasActiveSession;
+    resetBtn.disabled = !hasActiveSession;
+    
+    if (!hasActiveSession) {
+        promptInput.placeholder = "Create a new chat to start messaging...";
+        chatContainer.innerHTML = '<div style="text-align: center; color: #999; margin-top: 2rem;">No active chat. Create a new one to get started!</div>';
+    } else {
+        promptInput.placeholder = "Type your message...";
+    }
+};
+
+const renderSessionsList = () => {
+    sessionsList.innerHTML = '';
+    
+    sessions.forEach(session => {
+        const sessionClone = sessionItemTemplate.content.cloneNode(true);
+        const sessionItem = sessionClone.querySelector('.session-item');
+        const sessionName = sessionClone.querySelector('.session-name');
+        const sessionMeta = sessionClone.querySelector('.session-meta');
+        const deleteBtn = sessionClone.querySelector('.session-delete-btn');
+        
+        sessionItem.dataset.sessionId = session.id;
+        
+        // Display name: replace underscores with spaces for UI display
+        const displayName = session.name.replace(/_/g, ' ');
+        sessionName.textContent = displayName;
+        
+        // Format meta info
+        const messageCount = session.message_count;
+        const lastActive = new Date(session.last_active);
+        const now = new Date();
+        const diffMs = now - lastActive;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+        
+        let timeAgo;
+        if (diffMins < 1) timeAgo = 'now';
+        else if (diffMins < 60) timeAgo = `${diffMins}m`;
+        else if (diffHours < 24) timeAgo = `${diffHours}h`;
+        else timeAgo = `${diffDays}d`;
+        
+        sessionMeta.innerHTML = `<span>${messageCount} msgs</span><span>${timeAgo}</span>`;
+        
+        // Mark active session
+        if (session.id === currentSessionId) {
+            sessionItem.classList.add('active');
+        }
+        
+        // Session click handler
+        sessionItem.addEventListener('click', (e) => {
+            if (e.target === deleteBtn) return; // Don't switch when deleting
+            handleSessionSwitch(session.id);
+        });
+        
+        // Delete button handler
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleSessionDelete(session.id);
+        });
+        
+        sessionsList.appendChild(sessionClone);
+    });
+};
+
+const handleSessionSwitch = async (sessionId) => {
+    if (sessionId === currentSessionId || isProcessing) return;
+    
+    try {
+        await api.activateSession(sessionId);
+        currentSessionId = sessionId;
+        lastKnownHistoryLength = 0; // Reset history length for new session
+        await refreshHistory();
+        await refreshSessions(); // Update active state in UI
+        console.log(`Switched to session: ${sessionId}`);
+    } catch (error) {
+        console.error('Failed to switch session:', error);
+        ui.renderError(`Failed to switch to session: ${error.message}`);
+    }
+};
+
+const handleSessionDelete = async (sessionId) => {
+    const session = sessions.find(s => s.id === sessionId);
+    const sessionName = session ? session.name.replace(/_/g, ' ') : sessionId;
+    
+    if (!confirm(`Delete chat "${sessionName}"?`)) return;
+    
+    try {
+        await api.deleteSession(sessionId);
+        
+        // If we deleted the active session, just clear the current state
+        // DON'T auto-create a new session
+        if (sessionId === currentSessionId) {
+            currentSessionId = null;
+            lastKnownHistoryLength = 0;
+            chatContainer.innerHTML = '';
+        }
+        
+        await refreshSessions(); // This will update the UI state properly
+        console.log(`Deleted session: ${sessionId}`);
+    } catch (error) {
+        console.error('Failed to delete session:', error);
+        ui.renderError(`Failed to delete session: ${error.message}`);
+    }
+};
+
+const handleNewSession = async () => {
+    if (isProcessing) return;
+    
+    try {
+        const result = await api.createSession();
+        currentSessionId = result.session_id;
+        lastKnownHistoryLength = 0;
+        
+        // Clear chat container and refresh everything
+        chatContainer.innerHTML = '';
+        await refreshSessions();
+        await refreshHistory();
+        
+        // Focus on input
+        promptInput.focus();
+        
+        console.log(`Created new session: ${currentSessionId}`);
+    } catch (error) {
+        console.error('Failed to create new session:', error);
+        ui.renderError(`Failed to create new session: ${error.message}`);
+    }
+};
+
 // Event Handlers
 const handleTextareaInput = () => {
     promptInput.parentElement.dataset.replicatedValue = promptInput.value;
 };
 
 const handleTextareaKeydown = (event) => {
-    if (event.key === 'Enter' && !event.shiftKey && !isProcessing) {
+    if (event.key === 'Enter' && !event.shiftKey && !isProcessing && currentSessionId) {
         event.preventDefault();
         handleSendClick();
     }
 };
 
 const handleSendClick = async () => {
-    if (isProcessing || !promptInput.value.trim()) return;
+    if (isProcessing || !promptInput.value.trim() || !currentSessionId) return;
     
     const result = await chat.handleSendMessage(promptInput, sendBtn, setProcessing, refreshHistory);
     
     if (result?.streaming) {
         updateHistoryLength(lastKnownHistoryLength + 2);
+        // Refresh sessions to update message count
+        setTimeout(refreshSessions, 1000);
     } else if (result?.newLength !== undefined) {
         updateHistoryLength(result.newLength);
+        setTimeout(refreshSessions, 500);
     }
 };
 
 const handleResetClick = async () => {
+    if (!currentSessionId) return;
+    
     const newLength = await chat.handleResetChat(refreshHistory);
     updateHistoryLength(newLength);
+    setTimeout(refreshSessions, 500);
 };
 
 const handleAutoRefresh = async () => {
-    if (isProcessing || ui.isCurrentlyEditing()) return;
+    if (isProcessing || ui.isCurrentlyEditing() || !currentSessionId) return;
     
     const newLength = await chat.autoRefreshChat(isProcessing, lastKnownHistoryLength);
+    const lengthChanged = newLength !== lastKnownHistoryLength;
     updateHistoryLength(newLength);
+    
+    // Refresh sessions less frequently
+    if (lengthChanged) {
+        setTimeout(refreshSessions, 500);
+    }
 };
 
 // Toolbar action handlers
 const handleTrashClick = async (messageIndex) => {
+    if (!currentSessionId) return;
+    
     const newLength = await chat.handleTrashClick(messageIndex, refreshHistory);
     updateHistoryLength(newLength);
+    setTimeout(refreshSessions, 500);
 };
 
 const handleRegenerateClick = async (messageIndex) => {
+    if (!currentSessionId) return;
+    
     const newLength = await chat.handleRegenerateMessage(messageIndex, refreshHistory);
     updateHistoryLength(newLength);
+    setTimeout(refreshSessions, 1000);
 };
 
 const handleEditClick = async (messageIndex) => {
-    // Check if already editing
-    if (ui.isCurrentlyEditing()) {
-        console.log('Already editing a message');
+    if (ui.isCurrentlyEditing() || !currentSessionId) {
+        console.log('Already editing a message or no active session');
         return;
     }
     
-    // Get the message element
     const allMessages = chatContainer.querySelectorAll('.message');
     const messageElement = allMessages[messageIndex];
     
@@ -104,9 +270,8 @@ const handleEditClick = async (messageIndex) => {
         return;
     }
     
-    // Get current message data from history (fetch only, don't render!)
     try {
-        const history = await api.fetchHistory();  // Just fetch, don't render!
+        const history = await api.fetchHistory();
         const message = history[messageIndex];
         
         if (!message) {
@@ -114,16 +279,13 @@ const handleEditClick = async (messageIndex) => {
             return;
         }
         
-        // Start editing
         ui.startEditingMessage(messageElement, messageIndex, message.content, message.role);
-        
     } catch (error) {
         console.error('Error starting edit:', error);
     }
 };
 
 const handleContinueClick = async (messageIndex) => {
-    // Continue button does the same as regenerate - it regenerates from the user message
     console.log('Continue button clicked for message index:', messageIndex);
     await handleRegenerateClick(messageIndex);
 };
@@ -175,7 +337,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const messageIndex = parseInt(e.target.dataset.messageIndex);
             
             if (!isNaN(messageIndex) && action) {
-                // Allow trash, regenerate, and edit actions
                 if (action === 'trash' || action === 'regenerate' || action === 'edit') {
                     handleToolbarAction(action, messageIndex);
                 } else {
@@ -187,8 +348,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
     
-    // Initialize
-    await refreshHistory();
+    // Initialize - DON'T auto-create sessions
+    await refreshSessions();
+    if (currentSessionId) {
+        await refreshHistory();
+    }
     setProcessing(false); // Start auto-refresh
 });
 
@@ -200,6 +364,7 @@ document.addEventListener('messageSave', async (e) => {
         const newLength = await chat.handleEditMessage(messageIndex, newContent, role, refreshHistory);
         updateHistoryLength(newLength);
         ui.finishEditingMessage(true);
+        setTimeout(refreshSessions, 500);
     } catch (error) {
         console.error('Error saving edited message:', error);
         ui.finishEditingMessage(false);
@@ -216,6 +381,7 @@ sendBtn.addEventListener('click', (e) => {
 });
 
 // Control button events
+newSessionBtn.addEventListener('click', handleNewSession);
 refreshBtn.addEventListener('click', refreshHistory);
 resetBtn.addEventListener('click', handleResetClick);
 sidebarToggleBtn.addEventListener('click', () => {

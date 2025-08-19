@@ -14,8 +14,16 @@
              onerror="this.style.display='none'">
         
         <div class="sidebar-controls">
-            <button id="refresh-btn">🔄 Refresh Chat</button>
-            <button id="reset-btn" class="primary">🗑️ Reset Chat</button>
+            <button id="new-session-btn">➕ New Chat</button>
+            <button id="refresh-btn">🔄 Refresh</button>
+            <button id="reset-btn" class="primary">🗑️ Clear Chat</button>
+        </div>
+        
+        <div class="sessions-section">
+            <h3>Recent Chats</h3>
+            <div id="sessions-list" class="sessions-list">
+                <!-- Sessions will be loaded here -->
+            </div>
         </div>
     </div>
 
@@ -70,6 +78,14 @@
             <button class="continue-btn" id="continue-btn">
                 🔄 Ask AI to Continue
             </button>
+        </div>
+    </template>
+
+    <template id="session-item-template">
+        <div class="session-item">
+            <div class="session-name"></div>
+            <div class="session-meta"></div>
+            <button class="session-delete-btn" title="Delete session">🗑️</button>
         </div>
     </template>
 

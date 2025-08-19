@@ -15,14 +15,19 @@ CUSTOM_HEADERS = {}
 
 # Chat Settings
 MAX_HISTORY = 100
-SYSTEM_PROMPT = "You are a helpful AI assistant."
+SYSTEM_PROMPT = "You are a very mean AI assistant."
+
+# Session Settings
+SESSIONS_DIR = 'history'  # Directory to store chat sessions
+AUTO_NAME_SESSIONS = True  # Let AI generate names for sessions
+NAMING_PROMPT = "Generate a 3-word name for this conversation. Respond with only the 3 words, no punctuation:"
 
 # Streaming Settings
 ENABLE_STREAMING = True
 STREAMING_ENDPOINT = None  # If None, will try to auto-detect from LLM_ENDPOINT
 DEBUG_STREAMING = True  # Set to False to reduce streaming logs
 
-# Storage
+# Legacy Storage (deprecated)
 HISTORY_FILE = 'chat_history.json'
 
 # Server Settings
