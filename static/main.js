@@ -23,8 +23,7 @@ let autoRefreshInterval = null;
 let currentSessionId = null;
 let sessions = [];
 
-// Auto-naming refresh tracking
-let namingRefreshScheduled = false;
+// Auto-naming refresh tracking - not used anymore, using direct refresh attempts
 
 // Helper functions
 const setProcessing = (processing) => {
@@ -60,19 +59,6 @@ const refreshSessions = async () => {
     } catch (error) {
         console.error('Failed to refresh sessions:', error);
     }
-};
-
-const scheduleNamingRefresh = () => {
-    if (namingRefreshScheduled) return;
-    
-    namingRefreshScheduled = true;
-    console.log('Scheduling session name refresh in 3 seconds...');
-    
-    setTimeout(async () => {
-        console.log('Auto-refreshing sessions for naming update');
-        await refreshSessions();
-        namingRefreshScheduled = false;
-    }, 3000); // Wait 3 seconds for AI naming to complete
 };
 
 const updateUIState = () => {
@@ -240,11 +226,23 @@ const handleSendClick = async () => {
             console.log(`Current history length: ${currentHistory.length}`);
             
             if (currentHistory.length === 2) {
-                console.log('First exchange detected, refreshing sessions for naming update in 3 seconds...');
+                console.log('First exchange detected, refreshing sessions for naming update...');
+                
+                // Multiple refresh attempts to catch the naming when it completes
                 setTimeout(async () => {
-                    console.log('Auto-refreshing sessions for naming update');
+                    console.log('Auto-refresh attempt 1 (5s)');
                     await refreshSessions();
-                }, 3000);
+                }, 5000);
+                
+                setTimeout(async () => {
+                    console.log('Auto-refresh attempt 2 (10s)');
+                    await refreshSessions();
+                }, 10000);
+                
+                setTimeout(async () => {
+                    console.log('Auto-refresh attempt 3 (15s)');
+                    await refreshSessions();
+                }, 15000);
             }
         }, 500);
         
@@ -261,11 +259,23 @@ const handleSendClick = async () => {
             console.log(`Current history length: ${currentHistory.length}`);
             
             if (currentHistory.length === 2) {
-                console.log('First exchange detected, refreshing sessions for naming update in 3 seconds...');
+                console.log('First exchange detected, refreshing sessions for naming update...');
+                
+                // Multiple refresh attempts to catch the naming when it completes
                 setTimeout(async () => {
-                    console.log('Auto-refreshing sessions for naming update');
+                    console.log('Auto-refresh attempt 1 (5s)');
                     await refreshSessions();
-                }, 3000);
+                }, 5000);
+                
+                setTimeout(async () => {
+                    console.log('Auto-refresh attempt 2 (10s)');
+                    await refreshSessions();
+                }, 10000);
+                
+                setTimeout(async () => {
+                    console.log('Auto-refresh attempt 3 (15s)');
+                    await refreshSessions();
+                }, 15000);
             }
         }, 500);
         
